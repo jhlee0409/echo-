@@ -19,17 +19,57 @@ import {
 } from './types'
 import { supabase, auth } from '@lib/supabase'
 import { ENV } from '@config/env'
-import { EventEmitter } from 'events'
+import type { Provider as SupabaseOAuthProvider } from '@supabase/supabase-js'
+
+// 간단한 브라우저 호환 이벤트 emitter 구현 (Node 'events' 대체)
+class SimpleEventEmitter {
+  private listeners: Map<string, Set<(...args: any[]) => void>> = new Map()
+
+  on(event: string, listener: (...args: any[]) => void) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set())
+    this.listeners.get(event)!.add(listener)
+    return this
+  }
+
+  off(event: string, listener: (...args: any[]) => void) {
+    this.listeners.get(event)?.delete(listener)
+    return this
+  }
+
+  once(event: string, listener: (...args: any[]) => void) {
+    const wrapper = (...args: any[]) => {
+      this.off(event, wrapper)
+      listener(...args)
+    }
+    return this.on(event, wrapper)
+  }
+
+  emit(event: string, ...args: any[]) {
+    const set = this.listeners.get(event)
+    if (!set) return false
+    for (const listener of Array.from(set)) listener(...args)
+    return true
+  }
+
+  removeAllListeners(event?: string) {
+    if (event) {
+      this.listeners.delete(event)
+    } else {
+      this.listeners.clear()
+    }
+    return this
+  }
+}
 
 /**
  * Authentication Manager
  * Handles all authentication flows, user management, and security features
  */
-export class AuthManager extends EventEmitter {
+export class AuthManager extends SimpleEventEmitter {
   private currentUser: AuthUser | null = null
   private currentSession: AuthSession | null = null
   private gameContext: GameAuthContext | null = null
-  private refreshTimer: NodeJS.Timeout | null = null
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null
 
   // Role-based permissions mapping
   private readonly rolePermissions: Record<UserRole, Permission[]> = {
@@ -141,7 +181,7 @@ export class AuthManager extends EventEmitter {
       }
 
       if (session) {
-        await this.handleSessionUpdate(session)
+        await this.handleSessionUpdate(session as unknown as AuthSession)
       } else {
         console.log('ℹ️ No active session found')
       }
@@ -160,7 +200,7 @@ export class AuthManager extends EventEmitter {
       switch (event) {
         case 'SIGNED_IN':
           if (session) {
-            await this.handleSessionUpdate(session)
+            await this.handleSessionUpdate(session as unknown as AuthSession)
             this.emitAuthEvent('SIGNED_IN', {
               session_id: session.access_token,
             })
@@ -172,7 +212,7 @@ export class AuthManager extends EventEmitter {
           break
         case 'TOKEN_REFRESHED':
           if (session) {
-            await this.handleSessionUpdate(session)
+            await this.handleSessionUpdate(session as unknown as AuthSession)
             this.emitAuthEvent('TOKEN_REFRESHED', {
               session_id: session.access_token,
             })
@@ -302,13 +342,13 @@ export class AuthManager extends EventEmitter {
       1
     ).toISOString()
 
-    const { data: dailyCount } = await supabase
+    const { count: dailyCount } = await supabase
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .gte('created_at', `${today}T00:00:00Z`)
 
-    const { data: monthlyCount } = await supabase
+    const { count: monthlyCount } = await supabase
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
@@ -453,7 +493,7 @@ export class AuthManager extends EventEmitter {
       console.log(`🔑 Attempting OAuth sign in with ${request.provider}`)
 
       const { data, error } = await auth.signInWithOAuth({
-        provider: request.provider,
+        provider: request.provider as unknown as SupabaseOAuthProvider,
         options: {
           redirectTo: request.redirect_url,
           scopes: request.scopes?.join(' '),
