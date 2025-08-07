@@ -42,17 +42,17 @@ cat /tmp/risk_report_*.json | jq '.riskScore'
 // src/config/failover.ts 생성
 export const failoverConfig = {
   ai: {
-    providers: ['claude', 'openai', 'mock'],
+    providers: ['claude', 'mock'],
     circuitBreakerThreshold: 3,
-    fallbackDelay: 30000
+    fallbackDelay: 30000,
   },
-  
+
   database: {
     primary: 'supabase',
     fallback: 'localStorage',
-    syncInterval: 300000  // 5분
-  }
-};
+    syncInterval: 300000, // 5분
+  },
+}
 ```
 
 ## 📊 위험 수준별 대응 매뉴얼
@@ -60,12 +60,14 @@ export const failoverConfig = {
 ### 🔴 HIGH RISK (위험 점수 70+)
 
 **즉시 실행**:
+
 1. 모든 작업 중단
 2. 현재 상태 백업: `git add . && git commit -m "Emergency backup"`
 3. 위험 요소 분석: `./scripts/risk-monitor.sh`
 4. 롤백 고려: `git checkout [last-stable-commit]`
 
 **대응 체크리스트**:
+
 - [ ] TypeScript 오류 50개 미만으로 감소
 - [ ] 테스트 통과율 80% 이상 복구
 - [ ] API 응답시간 3초 미만 복구
@@ -74,11 +76,13 @@ export const failoverConfig = {
 ### 🟡 MEDIUM RISK (위험 점수 40-69)
 
 **모니터링 강화**:
+
 1. 체크 주기 30분으로 단축
 2. 자동 알림 활성화
 3. 예방적 조치 준비
 
 **예방 조치**:
+
 ```bash
 # 캐시 정리
 npm run clean-cache
@@ -93,6 +97,7 @@ npm run build
 ### 🟢 LOW RISK (위험 점수 0-39)
 
 **정상 모니터링**:
+
 - 1시간마다 체크
 - 리포트 생성
 - 예방적 유지보수
@@ -102,6 +107,7 @@ npm run build
 ### Phase 0: 기술 부채 해결
 
 **Day 1 체크포인트**:
+
 ```bash
 # 목표: AIManager 타입 오류 30개 해결
 current_errors=$(npm run type-check 2>&1 | grep "AIManager" | wc -l)
@@ -113,6 +119,7 @@ fi
 ```
 
 **Week 1 완료 검증**:
+
 ```bash
 # 완료 조건 확인
 typescript_errors=$(npm run type-check 2>&1 | grep -c "error" || echo "0")
@@ -128,24 +135,25 @@ fi
 ### Phase 2-4: 지속적 모니터링
 
 **각 Phase 시작 전**:
+
 ```bash
 # 사전 검증 스크립트
 phase_precheck() {
   local phase=$1
-  
+
   echo "Phase $phase 사전 검증 중..."
-  
+
   # 기술 부채 확인
   if [ $(npm run type-check 2>&1 | grep -c "error") -gt 10 ]; then
     echo "🚨 TypeScript 오류 10개 초과 - Phase $phase 연기"
     return 1
   fi
-  
+
   # 자동화 스크립트 확인
   if ! npm run "phase${phase}:character" --dry-run >/dev/null 2>&1; then
     echo "🚨 자동화 스크립트 실패 - 수동 모드로 전환"
   fi
-  
+
   echo "✅ Phase $phase 진행 가능"
   return 0
 }
@@ -206,7 +214,7 @@ npm run test:data-integrity
 send_risk_alert() {
   local risk_score=$1
   local webhook_url="YOUR_WEBHOOK_URL"
-  
+
   curl -X POST -H 'Content-type: application/json' \
     --data "{\"text\":\"🚨 위험 점수: $risk_score - 즉시 확인 필요!\"}" \
     $webhook_url
@@ -219,13 +227,13 @@ send_risk_alert() {
 # 일일 위험 요약 생성
 generate_daily_report() {
   local date=$(date +%Y-%m-%d)
-  
+
   cat > "reports/daily_risk_$date.md" << EOF
 # 일일 위험 리포트 - $date
 
 ## 현재 상태
 - TypeScript 오류: $(npm run type-check 2>&1 | grep -c "error")개
-- 테스트 실패: $(npm test 2>&1 | grep -c "failed")개  
+- 테스트 실패: $(npm test 2>&1 | grep -c "failed")개
 - 위험 점수: $(./scripts/risk-monitor.sh | grep "위험 점수" | cut -d':' -f2)
 
 ## 권장 조치
@@ -237,6 +245,7 @@ EOF
 ## 🎯 성공 지표
 
 ### Phase 0 완료 기준
+
 - [ ] TypeScript 오류 < 10개
 - [ ] 테스트 통과율 > 85%
 - [ ] 빌드 성공
@@ -244,6 +253,7 @@ EOF
 - [ ] 자동화 스크립트 정상 작동
 
 ### 프로젝트 전체 성공 기준
+
 - [ ] 모든 Phase 95% 이상 완료
 - [ ] 성능 목표 달성 (execution-plan.md 기준)
 - [ ] 비용 예산 80% 미만 사용
@@ -252,6 +262,7 @@ EOF
 ---
 
 **긴급 상황 시 연락처**:
+
 - 프로젝트 관리: execution-plan.md 섹션 10
 - 기술 문서: IMPLEMENTATION_FEASIBILITY_ANALYSIS.md
 - 위험 모니터링: `./scripts/risk-monitor.sh`

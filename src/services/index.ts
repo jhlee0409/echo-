@@ -5,7 +5,7 @@ export {
   GameStateService,
   MessageService,
   UserSettingsService,
-  GameDataService
+  GameDataService,
 } from './database'
 
 // AI Services
@@ -15,12 +15,11 @@ export {
   CostOptimizer,
   PromptEngine,
   ClaudeProvider,
-  OpenAIProvider,
   MockProvider,
-  getAIManager
+  getAIManager,
 } from './ai'
 
-// Authentication Services  
+// Authentication Services
 export {
   AuthManager,
   SessionManager,
@@ -35,7 +34,7 @@ export {
   formatAuthError,
   validateAuthToken,
   getPermissionsForRole,
-  getLimitsForTier
+  getLimitsForTier,
 } from './auth'
 
 // Re-export types
@@ -44,7 +43,7 @@ export type {
   AIProvider,
   AIRequest,
   AIResponse,
-  AIProviderError
+  AIProviderError,
 } from './ai'
 
 export type {
@@ -58,7 +57,7 @@ export type {
   UserRole,
   Permission,
   SubscriptionTier,
-  AuthErrorResponse
+  AuthErrorResponse,
 } from './auth'
 
 export type {
@@ -68,5 +67,5 @@ export type {
   CompanionRow,
   GameStateRow,
   MessageRow,
-  UserSettingsRow
+  UserSettingsRow,
 } from '../lib/supabase'

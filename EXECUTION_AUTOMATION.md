@@ -3,8 +3,9 @@
 ## 📊 현재 상태 및 다음 단계
 
 ### ✅ Phase 1 완료 상황 (120% 달성)
-- **AI 대화 시스템**: ✅ Claude + OpenAI + Mock Provider
-- **인증 시스템**: ✅ JWT + RBAC + Supabase  
+
+- **AI 대화 시스템**: ✅ Claude + Mock Provider
+- **인증 시스템**: ✅ JWT + RBAC + Supabase
 - **기본 컴포넌트**: ✅ ChatWindow, CharacterStatus, GameMenu
 - **테스트 인프라**: ✅ Vitest + 76개 테스트 케이스
 
@@ -22,7 +23,7 @@ echo "🎮 Phase 2: 캐릭터 시스템 구현 시작..."
 
 # 캐릭터 관련 컴포넌트 생성
 npm run generate:component -- CharacterProfile
-npm run generate:component -- InventorySystem  
+npm run generate:component -- InventorySystem
 npm run generate:component -- SkillTree
 npm run generate:component -- RelationshipTracker
 
@@ -104,34 +105,37 @@ echo "✅ Phase 4 배포 완료!"
 ## 📁 자동화 스크립트 생성
 
 ### `/scripts/generate-character-system.js`
+
 ```javascript
 import { AIManager } from '../src/services/ai/AIManager.js'
 import fs from 'fs/promises'
 
 async function generateCharacterSystem() {
   const aiManager = new AIManager()
-  
+
   // AI 캐릭터 성격 매트릭스 생성
   const personalities = await aiManager.generateResponse({
-    messages: [{
-      role: 'system',
-      content: `Generate 10 unique AI companion personalities for a Korean RPG game.
+    messages: [
+      {
+        role: 'system',
+        content: `Generate 10 unique AI companion personalities for a Korean RPG game.
       Each personality should have:
       - Name (Korean)
       - 5 personality traits (0-1 scale)
       - Unique dialogue style
       - Special abilities
-      Format as JSON array.`
-    }],
-    provider: 'claude'
+      Format as JSON array.`,
+      },
+    ],
+    provider: 'claude',
   })
-  
+
   // 파일로 저장
   await fs.writeFile(
     './src/data/ai-personalities.json',
     JSON.stringify(JSON.parse(personalities.text), null, 2)
   )
-  
+
   console.log('✅ AI 캐릭터 성격 시스템 생성 완료')
 }
 
@@ -139,6 +143,7 @@ generateCharacterSystem()
 ```
 
 ### `/scripts/implement-relationship.js`
+
 ```javascript
 import fs from 'fs/promises'
 
@@ -199,7 +204,7 @@ async function implementRelationship() {
     './src/store/relationshipStore.ts',
     relationshipSystemTemplate
   )
-  
+
   // 관계 이벤트 시스템 생성
   const eventSystemTemplate = `
 export const relationshipEvents = {
@@ -218,12 +223,9 @@ export const relationshipEvents = {
   // ... 더 많은 이벤트
 }
 `
-  
-  await fs.writeFile(
-    './src/data/relationship-events.ts',
-    eventSystemTemplate
-  )
-  
+
+  await fs.writeFile('./src/data/relationship-events.ts', eventSystemTemplate)
+
   console.log('✅ 관계 시스템 구현 완료')
 }
 
@@ -231,6 +233,7 @@ implementRelationship()
 ```
 
 ### `/scripts/generate-story-content.js`
+
 ```javascript
 import { AIManager } from '../src/services/ai/AIManager.js'
 import fs from 'fs/promises'
@@ -238,9 +241,11 @@ import fs from 'fs/promises'
 async function generateStoryContent(args) {
   const { conversations, events, quests } = parseArgs(args)
   const aiManager = new AIManager()
-  
-  console.log(`📝 생성 중: ${conversations}개 대화, ${events}개 이벤트, ${quests}개 퀘스트`)
-  
+
+  console.log(
+    `📝 생성 중: ${conversations}개 대화, ${events}개 이벤트, ${quests}개 퀘스트`
+  )
+
   // 대화 콘텐츠 생성
   const conversationPrompt = `
 Generate ${conversations} daily conversation starters for a Korean AI companion RPG.
@@ -265,28 +270,28 @@ Format each as:
   }
 }
 `
-  
+
   const result = await aiManager.generateResponse({
-    messages: [{
-      role: 'system',
-      content: conversationPrompt
-    }],
-    provider: 'claude'
+    messages: [
+      {
+        role: 'system',
+        content: conversationPrompt,
+      },
+    ],
+    provider: 'claude',
   })
-  
-  await fs.writeFile(
-    './src/data/conversations.json',
-    result.text
-  )
-  
+
+  await fs.writeFile('./src/data/conversations.json', result.text)
+
   console.log('✅ 스토리 콘텐츠 생성 완료')
 }
 
 function parseArgs(args) {
-  const conversations = args.find(a => a.includes('--conversations'))?.split(' ')[1] || 100
+  const conversations =
+    args.find(a => a.includes('--conversations'))?.split(' ')[1] || 100
   const events = args.find(a => a.includes('--events'))?.split(' ')[1] || 50
   const quests = args.find(a => a.includes('--quests'))?.split(' ')[1] || 30
-  
+
   return { conversations, events, quests }
 }
 
@@ -296,6 +301,7 @@ generateStoryContent(process.argv.slice(2))
 ## 🔄 자동화 모니터링 시스템
 
 ### `/scripts/monitor-progress.js`
+
 ```javascript
 import chalk from 'chalk'
 import { exec } from 'child_process'
@@ -305,19 +311,19 @@ const execAsync = promisify(exec)
 
 async function monitorProgress() {
   console.log(chalk.blue('📊 소울메이트 개발 진행상황 모니터링\n'))
-  
+
   // Git 상태 확인
   const { stdout: gitStatus } = await execAsync('git status --short')
   console.log(chalk.yellow('📁 변경된 파일:'))
   console.log(gitStatus || '  변경사항 없음')
-  
+
   // 테스트 실행
   console.log(chalk.yellow('\n🧪 테스트 실행 중...'))
   try {
     const { stdout: testResult } = await execAsync('npm test -- --run')
     const passed = testResult.match(/(\d+) passed/)?.[1] || 0
     const failed = testResult.match(/(\d+) failed/)?.[1] || 0
-    
+
     console.log(chalk.green(`  ✅ ${passed}개 테스트 통과`))
     if (failed > 0) {
       console.log(chalk.red(`  ❌ ${failed}개 테스트 실패`))
@@ -325,7 +331,7 @@ async function monitorProgress() {
   } catch (error) {
     console.log(chalk.red('  테스트 실행 실패'))
   }
-  
+
   // 빌드 크기 확인
   console.log(chalk.yellow('\n📦 빌드 크기:'))
   try {
@@ -334,29 +340,34 @@ async function monitorProgress() {
   } catch {
     console.log('  아직 빌드되지 않음')
   }
-  
+
   // TODO 항목 확인
   console.log(chalk.yellow('\n📋 TODO 항목:'))
-  const { stdout: todos } = await execAsync('grep -r "TODO" src --include="*.ts" --include="*.tsx" | wc -l')
+  const { stdout: todos } = await execAsync(
+    'grep -r "TODO" src --include="*.ts" --include="*.tsx" | wc -l'
+  )
   console.log(`  ${todos.trim()}개의 TODO 발견`)
-  
+
   // 진행률 계산
   const phases = {
     'Phase 1': 100,
     'Phase 2 - 캐릭터': 0,
     'Phase 2 - 전투': 0,
     'Phase 3 - 콘텐츠': 0,
-    'Phase 4 - 배포': 0
+    'Phase 4 - 배포': 0,
   }
-  
-  const totalProgress = Object.values(phases).reduce((a, b) => a + b) / Object.keys(phases).length
-  
+
+  const totalProgress =
+    Object.values(phases).reduce((a, b) => a + b) / Object.keys(phases).length
+
   console.log(chalk.blue(`\n🎯 전체 진행률: ${totalProgress.toFixed(1)}%`))
-  
+
   // 진행률 바
-  const progressBar = '█'.repeat(Math.floor(totalProgress / 5)) + '░'.repeat(20 - Math.floor(totalProgress / 5))
+  const progressBar =
+    '█'.repeat(Math.floor(totalProgress / 5)) +
+    '░'.repeat(20 - Math.floor(totalProgress / 5))
   console.log(`[${progressBar}]`)
-  
+
   // 다음 단계 안내
   console.log(chalk.green('\n📌 다음 단계:'))
   console.log('  1. npm run phase2:character - 캐릭터 시스템 구현')
@@ -400,6 +411,7 @@ if (process.argv.includes('--watch')) {
 ## 🎯 실행 명령어
 
 ### 개발 진행 자동화
+
 ```bash
 # 전체 자동화 설정
 npm run automation:setup
@@ -416,6 +428,7 @@ npm run monitor:watch    # 실시간 모니터링
 ```
 
 ### AI 콘텐츠 생성
+
 ```bash
 # 개별 생성
 npm run ai:conversations  # 대화 생성
@@ -428,12 +441,12 @@ npm run ai:all           # 모든 콘텐츠
 
 ## 🔮 예상 일정
 
-| 단계 | 기간 | 자동화 수준 | 예상 시간 절약 |
-|------|------|-------------|----------------|
-| Phase 2 - 캐릭터 | 2주 | 80% | 8일 → 3일 |
-| Phase 2 - 전투 | 2주 | 70% | 10일 → 4일 |
-| Phase 3 - 콘텐츠 | 3주 | 90% | 15일 → 3일 |
-| Phase 4 - 배포 | 1주 | 95% | 5일 → 1일 |
+| 단계             | 기간 | 자동화 수준 | 예상 시간 절약 |
+| ---------------- | ---- | ----------- | -------------- |
+| Phase 2 - 캐릭터 | 2주  | 80%         | 8일 → 3일      |
+| Phase 2 - 전투   | 2주  | 70%         | 10일 → 4일     |
+| Phase 3 - 콘텐츠 | 3주  | 90%         | 15일 → 3일     |
+| Phase 4 - 배포   | 1주  | 95%         | 5일 → 1일      |
 
 **총 절약 시간**: 38일 → 11일 (71% 단축)
 

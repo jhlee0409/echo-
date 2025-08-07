@@ -1,27 +1,23 @@
-import { 
-  AuthUser, 
-  AuthSession, 
-  UserProfile, 
+import {
+  AuthUser,
+  AuthSession,
   GameAuthContext,
-  SignUpRequest, 
+  SignUpRequest,
   SignUpResponse,
-  SignInRequest, 
+  SignInRequest,
   SignInResponse,
   PasswordResetRequest,
   PasswordUpdateRequest,
   ProfileUpdateRequest,
-  OAuthProvider,
   OAuthSignInRequest,
   AuthEvent,
   AuthEventPayload,
-  AuthErrorResponse,
-  SecuritySettings,
   SubscriptionLimits,
   Permission,
   UserRole,
-  SubscriptionTier
+  SubscriptionTier,
 } from './types'
-import { supabase, getCurrentUser, auth } from '@lib/supabase'
+import { supabase, auth } from '@lib/supabase'
 import { ENV } from '@config/env'
 import { EventEmitter } from 'events'
 
@@ -34,63 +30,92 @@ export class AuthManager extends EventEmitter {
   private currentSession: AuthSession | null = null
   private gameContext: GameAuthContext | null = null
   private refreshTimer: NodeJS.Timeout | null = null
-  
+
   // Role-based permissions mapping
   private readonly rolePermissions: Record<UserRole, Permission[]> = {
     user: [
-      'read:profile', 'write:profile',
-      'read:companions', 'write:companions',
-      'read:messages', 'write:messages'
+      'read:profile',
+      'write:profile',
+      'read:companions',
+      'write:companions',
+      'read:messages',
+      'write:messages',
     ],
     moderator: [
-      'read:profile', 'write:profile',
-      'read:companions', 'write:companions', 'delete:companions',
-      'read:messages', 'write:messages', 'delete:messages'
+      'read:profile',
+      'write:profile',
+      'read:companions',
+      'write:companions',
+      'delete:companions',
+      'read:messages',
+      'write:messages',
+      'delete:messages',
     ],
     admin: [
-      'read:profile', 'write:profile',
-      'read:companions', 'write:companions', 'delete:companions',
-      'read:messages', 'write:messages', 'delete:messages',
-      'admin:users', 'admin:analytics'
+      'read:profile',
+      'write:profile',
+      'read:companions',
+      'write:companions',
+      'delete:companions',
+      'read:messages',
+      'write:messages',
+      'delete:messages',
+      'admin:users',
+      'admin:analytics',
     ],
     developer: [
-      'read:profile', 'write:profile',
-      'read:companions', 'write:companions', 'delete:companions',
-      'read:messages', 'write:messages', 'delete:messages',
-      'admin:users', 'admin:analytics', 'admin:system'
-    ]
+      'read:profile',
+      'write:profile',
+      'read:companions',
+      'write:companions',
+      'delete:companions',
+      'read:messages',
+      'write:messages',
+      'delete:messages',
+      'admin:users',
+      'admin:analytics',
+      'admin:system',
+    ],
   }
 
   // Subscription tier limits
-  private readonly subscriptionLimits: Record<SubscriptionTier, SubscriptionLimits> = {
+  private readonly subscriptionLimits: Record<
+    SubscriptionTier,
+    SubscriptionLimits
+  > = {
     free: {
       maxCompanions: 1,
       maxDailyMessages: 50,
       maxStoredMessages: 1000,
       aiProviderAccess: ['mock'],
-      premiumFeatures: []
+      premiumFeatures: [],
     },
     premium: {
       maxCompanions: 3,
       maxDailyMessages: 200,
       maxStoredMessages: 10000,
       aiProviderAccess: ['mock', 'claude'],
-      premiumFeatures: ['voice_chat', 'custom_personality']
+      premiumFeatures: ['voice_chat', 'custom_personality'],
     },
     pro: {
       maxCompanions: 10,
       maxDailyMessages: 500,
       maxStoredMessages: 50000,
-      aiProviderAccess: ['mock', 'claude', 'openai'],
-      premiumFeatures: ['voice_chat', 'custom_personality', 'advanced_emotions', 'custom_avatar']
+      aiProviderAccess: ['mock', 'claude'],
+      premiumFeatures: [
+        'voice_chat',
+        'custom_personality',
+        'advanced_emotions',
+        'custom_avatar',
+      ],
     },
     enterprise: {
       maxCompanions: -1, // unlimited
       maxDailyMessages: -1, // unlimited
       maxStoredMessages: -1, // unlimited
-      aiProviderAccess: ['mock', 'claude', 'openai'],
-      premiumFeatures: ['all']
-    }
+      aiProviderAccess: ['mock', 'claude'],
+      premiumFeatures: ['all'],
+    },
   }
 
   constructor() {
@@ -104,8 +129,11 @@ export class AuthManager extends EventEmitter {
    */
   private async initializeSession() {
     try {
-      const { data: { session }, error } = await auth.getSession()
-      
+      const {
+        data: { session },
+        error,
+      } = await auth.getSession()
+
       if (error) {
         console.error('❌ Error initializing session:', error)
         this.emitAuthEvent('SESSION_EXPIRED')
@@ -133,7 +161,9 @@ export class AuthManager extends EventEmitter {
         case 'SIGNED_IN':
           if (session) {
             await this.handleSessionUpdate(session)
-            this.emitAuthEvent('SIGNED_IN', { session_id: session.access_token })
+            this.emitAuthEvent('SIGNED_IN', {
+              session_id: session.access_token,
+            })
           }
           break
         case 'SIGNED_OUT':
@@ -143,7 +173,9 @@ export class AuthManager extends EventEmitter {
         case 'TOKEN_REFRESHED':
           if (session) {
             await this.handleSessionUpdate(session)
-            this.emitAuthEvent('TOKEN_REFRESHED', { session_id: session.access_token })
+            this.emitAuthEvent('TOKEN_REFRESHED', {
+              session_id: session.access_token,
+            })
           }
           break
         case 'USER_UPDATED':
@@ -165,10 +197,10 @@ export class AuthManager extends EventEmitter {
   private async handleSessionUpdate(session: AuthSession) {
     this.currentSession = session
     this.currentUser = session.user as AuthUser
-    
+
     // Setup token refresh timer
     this.setupTokenRefresh(session)
-    
+
     // Load game context
     await this.updateGameContext(this.currentUser)
   }
@@ -183,9 +215,9 @@ export class AuthManager extends EventEmitter {
 
     // Refresh token 5 minutes before expiry
     const expiresAt = session.expires_at! * 1000
-    const refreshAt = expiresAt - (5 * 60 * 1000)
+    const refreshAt = expiresAt - 5 * 60 * 1000
     const now = Date.now()
-    
+
     if (refreshAt > now) {
       this.refreshTimer = setTimeout(async () => {
         try {
@@ -220,14 +252,19 @@ export class AuthManager extends EventEmitter {
 
       // Get user permissions based on role
       const role = (profile.role || 'user') as UserRole
-      const permissions = this.rolePermissions[role] || this.rolePermissions.user
+      const permissions =
+        this.rolePermissions[role] || this.rolePermissions.user
 
       // Get subscription limits
-      const subscriptionTier = (profile.subscription_tier || 'free') as SubscriptionTier
+      const subscriptionTier = (profile.subscription_tier ||
+        'free') as SubscriptionTier
       const subscriptionLimits = this.subscriptionLimits[subscriptionTier]
 
       // Calculate message quota
-      const messageQuota = await this.calculateMessageQuota(user.id, subscriptionLimits)
+      const messageQuota = await this.calculateMessageQuota(
+        user.id,
+        subscriptionLimits
+      )
 
       // Build game context
       this.gameContext = {
@@ -237,16 +274,15 @@ export class AuthManager extends EventEmitter {
         permissions,
         companion_access: permissions.includes('read:companions'),
         message_quota: messageQuota,
-        feature_flags: await this.getFeatureFlags(user.id, subscriptionTier)
+        feature_flags: await this.getFeatureFlags(user.id, subscriptionTier),
       }
 
       console.log('✅ Game context updated:', {
         user_id: user.id,
         role,
         subscription: subscriptionTier,
-        permissions: permissions.length
+        permissions: permissions.length,
       })
-
     } catch (error) {
       console.error('❌ Failed to update game context:', error)
     }
@@ -255,9 +291,16 @@ export class AuthManager extends EventEmitter {
   /**
    * Calculate user's message quota
    */
-  private async calculateMessageQuota(userId: string, limits: SubscriptionLimits) {
+  private async calculateMessageQuota(
+    userId: string,
+    limits: SubscriptionLimits
+  ) {
     const today = new Date().toISOString().split('T')[0]
-    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+    const startOfMonth = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth(),
+      1
+    ).toISOString()
 
     const { data: dailyCount } = await supabase
       .from('messages')
@@ -275,21 +318,32 @@ export class AuthManager extends EventEmitter {
       daily_used: dailyCount || 0,
       daily_limit: limits.maxDailyMessages,
       monthly_used: monthlyCount || 0,
-      monthly_limit: limits.maxDailyMessages * 30 // Approximate monthly limit
+      monthly_limit: limits.maxDailyMessages * 30, // Approximate monthly limit
     }
   }
 
   /**
    * Get feature flags for user
    */
-  private async getFeatureFlags(userId: string, tier: SubscriptionTier): Promise<Record<string, boolean>> {
+  private async getFeatureFlags(
+    userId: string,
+    tier: SubscriptionTier
+  ): Promise<Record<string, boolean>> {
     const limits = this.subscriptionLimits[tier]
-    
+
     return {
-      voice_chat: limits.premiumFeatures.includes('voice_chat') || limits.premiumFeatures.includes('all'),
-      custom_personality: limits.premiumFeatures.includes('custom_personality') || limits.premiumFeatures.includes('all'),
-      advanced_emotions: limits.premiumFeatures.includes('advanced_emotions') || limits.premiumFeatures.includes('all'),
-      custom_avatar: limits.premiumFeatures.includes('custom_avatar') || limits.premiumFeatures.includes('all'),
+      voice_chat:
+        limits.premiumFeatures.includes('voice_chat') ||
+        limits.premiumFeatures.includes('all'),
+      custom_personality:
+        limits.premiumFeatures.includes('custom_personality') ||
+        limits.premiumFeatures.includes('all'),
+      advanced_emotions:
+        limits.premiumFeatures.includes('advanced_emotions') ||
+        limits.premiumFeatures.includes('all'),
+      custom_avatar:
+        limits.premiumFeatures.includes('custom_avatar') ||
+        limits.premiumFeatures.includes('all'),
       analytics: ENV.ENABLE_ANALYTICS,
       debug_mode: ENV.ENABLE_DEBUG_MODE,
     }
@@ -309,9 +363,9 @@ export class AuthManager extends EventEmitter {
           data: {
             display_name: request.display_name || '',
             language: request.language || 'ko',
-            timezone: request.timezone || 'Asia/Seoul'
-          }
-        }
+            timezone: request.timezone || 'Asia/Seoul',
+          },
+        },
       })
 
       if (error) {
@@ -319,7 +373,7 @@ export class AuthManager extends EventEmitter {
           user: null,
           session: null,
           error,
-          requires_verification: false
+          requires_verification: false,
         }
       }
 
@@ -332,16 +386,15 @@ export class AuthManager extends EventEmitter {
         user: data.user as AuthUser,
         session: data.session as AuthSession,
         error: null,
-        requires_verification: !data.session // If no session, email verification required
+        requires_verification: !data.session, // If no session, email verification required
       }
-
     } catch (error) {
       console.error('❌ Sign up error:', error)
       return {
         user: null,
         session: null,
         error: error as any,
-        requires_verification: false
+        requires_verification: false,
       }
     }
   }
@@ -355,18 +408,18 @@ export class AuthManager extends EventEmitter {
 
       const { data, error } = await auth.signInWithPassword({
         email: request.email,
-        password: request.password
+        password: request.password,
       })
 
       if (error) {
         // Log failed attempt
         await this.logLoginAttempt(request.email, false, error.message)
-        
+
         return {
           user: null,
           session: null,
           error,
-          requires_mfa: false
+          requires_mfa: false,
         }
       }
 
@@ -377,16 +430,15 @@ export class AuthManager extends EventEmitter {
         user: data.user as AuthUser,
         session: data.session as AuthSession,
         error: null,
-        requires_mfa: false // TODO: Implement MFA detection
+        requires_mfa: false, // TODO: Implement MFA detection
       }
-
     } catch (error) {
       console.error('❌ Sign in error:', error)
       return {
         user: null,
         session: null,
         error: error as any,
-        requires_mfa: false
+        requires_mfa: false,
       }
     }
   }
@@ -394,7 +446,9 @@ export class AuthManager extends EventEmitter {
   /**
    * OAuth Sign In
    */
-  async signInWithOAuth(request: OAuthSignInRequest): Promise<{ data: any, error: any }> {
+  async signInWithOAuth(
+    request: OAuthSignInRequest
+  ): Promise<{ data: any; error: any }> {
     try {
       console.log(`🔑 Attempting OAuth sign in with ${request.provider}`)
 
@@ -402,8 +456,8 @@ export class AuthManager extends EventEmitter {
         provider: request.provider,
         options: {
           redirectTo: request.redirect_url,
-          scopes: request.scopes?.join(' ')
-        }
+          scopes: request.scopes?.join(' '),
+        },
       })
 
       if (error) {
@@ -425,7 +479,7 @@ export class AuthManager extends EventEmitter {
       console.log('👋 Signing out user')
 
       const { error } = await auth.signOut()
-      
+
       if (!error) {
         await this.handleSignOut()
       }
@@ -444,7 +498,7 @@ export class AuthManager extends EventEmitter {
     this.currentUser = null
     this.currentSession = null
     this.gameContext = null
-    
+
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer)
       this.refreshTimer = null
@@ -458,12 +512,14 @@ export class AuthManager extends EventEmitter {
   /**
    * Password Reset Request
    */
-  async requestPasswordReset(request: PasswordResetRequest): Promise<{ error: any }> {
+  async requestPasswordReset(
+    request: PasswordResetRequest
+  ): Promise<{ error: any }> {
     try {
       console.log('🔑 Requesting password reset for:', request.email)
 
       const { error } = await auth.resetPasswordForEmail(request.email, {
-        redirectTo: request.redirect_url
+        redirectTo: request.redirect_url,
       })
 
       if (error) {
@@ -482,12 +538,14 @@ export class AuthManager extends EventEmitter {
   /**
    * Update Password
    */
-  async updatePassword(request: PasswordUpdateRequest): Promise<{ error: any }> {
+  async updatePassword(
+    request: PasswordUpdateRequest
+  ): Promise<{ error: any }> {
     try {
       console.log('🔑 Updating user password')
 
       const { error } = await auth.updateUser({
-        password: request.new_password
+        password: request.new_password,
       })
 
       if (error) {
@@ -520,8 +578,8 @@ export class AuthManager extends EventEmitter {
           display_name: request.display_name,
           avatar_url: request.avatar_url,
           language: request.language,
-          timezone: request.timezone
-        }
+          timezone: request.timezone,
+        },
       })
 
       if (authError) {
@@ -539,7 +597,7 @@ export class AuthManager extends EventEmitter {
           timezone: request.timezone,
           is_public: request.is_public,
           allow_analytics: request.allow_analytics,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', this.currentUser.id)
 
@@ -561,18 +619,16 @@ export class AuthManager extends EventEmitter {
    */
   private async createUserProfile(user: any, request: SignUpRequest) {
     try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: user.id,
-          username: null,
-          display_name: request.display_name || null,
-          avatar_url: null,
-          language: request.language || 'ko',
-          timezone: request.timezone || 'Asia/Seoul',
-          is_public: false,
-          allow_analytics: false
-        })
+      const { error } = await supabase.from('user_profiles').insert({
+        id: user.id,
+        username: null,
+        display_name: request.display_name || null,
+        avatar_url: null,
+        language: request.language || 'ko',
+        timezone: request.timezone || 'Asia/Seoul',
+        is_public: false,
+        allow_analytics: false,
+      })
 
       if (error) {
         console.error('❌ Failed to create user profile:', error)
@@ -587,7 +643,11 @@ export class AuthManager extends EventEmitter {
   /**
    * Log login attempts for security
    */
-  private async logLoginAttempt(email: string, success: boolean, reason?: string) {
+  private async logLoginAttempt(
+    email: string,
+    success: boolean,
+    reason?: string
+  ) {
     try {
       // In a real app, you'd want to capture IP, user agent, etc.
       const attempt = {
@@ -596,7 +656,7 @@ export class AuthManager extends EventEmitter {
         failure_reason: reason || null,
         attempted_at: new Date().toISOString(),
         ip_address: 'unknown', // Would get from request in server
-        user_agent: navigator.userAgent
+        user_agent: navigator.userAgent,
       }
 
       // Store in analytics or security table
@@ -615,7 +675,7 @@ export class AuthManager extends EventEmitter {
       user_id: this.currentUser?.id,
       session_id: this.currentSession?.access_token,
       timestamp: new Date().toISOString(),
-      metadata
+      metadata,
     }
 
     this.emit('auth_event', payload)
@@ -655,14 +715,15 @@ export class AuthManager extends EventEmitter {
   /**
    * Get remaining message quota
    */
-  getMessageQuota(): { daily: number, monthly: number } {
+  getMessageQuota(): { daily: number; monthly: number } {
     if (!this.gameContext) return { daily: 0, monthly: 0 }
-    
-    const { daily_limit, daily_used, monthly_limit, monthly_used } = this.gameContext.message_quota
-    
+
+    const { daily_limit, daily_used, monthly_limit, monthly_used } =
+      this.gameContext.message_quota
+
     return {
       daily: Math.max(0, daily_limit - daily_used),
-      monthly: Math.max(0, monthly_limit - monthly_used)
+      monthly: Math.max(0, monthly_limit - monthly_used),
     }
   }
 
