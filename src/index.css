@@ -1,0 +1,204 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Base styles for the AI companion game */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-dark-navy text-ui-text-50 antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-surface;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
+  
+  /* Selection color */
+  ::selection {
+    @apply bg-neon-mint/20 text-neon-mint;
+  }
+}
+
+/* Component layer for reusable game UI patterns */
+@layer components {
+  /* Glass morphism panel */
+  .glass-panel {
+    @apply bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl;
+  }
+  
+  /* Neon button styles */
+  .btn-neon {
+    @apply px-6 py-3 bg-transparent border border-neon-mint text-neon-mint rounded-lg 
+           font-medium transition-all duration-300 hover:bg-neon-mint hover:text-dark-navy
+           hover:shadow-neon active:scale-95;
+  }
+  
+  .btn-neon-purple {
+    @apply px-6 py-3 bg-transparent border border-neon-purple text-neon-purple rounded-lg 
+           font-medium transition-all duration-300 hover:bg-neon-purple hover:text-white
+           hover:shadow-neon-purple active:scale-95;
+  }
+  
+  /* Chat message styles */
+  .message-user {
+    @apply bg-neon-mint/10 border-neon-mint/20 border rounded-2xl rounded-br-sm 
+           p-4 text-neon-mint ml-8 animate-message-in;
+  }
+  
+  .message-ai {
+    @apply bg-dark-surface border-gray-600/30 border rounded-2xl rounded-bl-sm 
+           p-4 text-ui-text-50 mr-8 animate-message-in;
+  }
+  
+  /* Character status indicators */
+  .status-indicator {
+    @apply w-3 h-3 rounded-full border-2 border-dark-navy;
+  }
+  
+  .status-online {
+    @apply bg-game-status-online shadow-[0_0_10px_rgba(16,185,129,0.5)];
+  }
+  
+  .status-away {
+    @apply bg-game-status-away shadow-[0_0_10px_rgba(245,158,11,0.5)];
+  }
+  
+  .status-busy {
+    @apply bg-game-status-busy shadow-[0_0_10px_rgba(239,68,68,0.5)];
+  }
+  
+  /* Typing indicator animation */
+  .typing-dots {
+    @apply flex space-x-1;
+  }
+  
+  .typing-dot {
+    @apply w-2 h-2 bg-gray-400 rounded-full animate-pulse;
+    animation-delay: var(--delay, 0s);
+  }
+  
+  /* Emotion synchronization bar */
+  .emotion-sync-bar {
+    @apply h-2 bg-gradient-to-r from-neon-mint via-neon-blue to-neon-purple rounded-full
+           relative overflow-hidden;
+  }
+  
+  .emotion-sync-fill {
+    @apply absolute inset-0 bg-gradient-to-r from-neon-mint to-neon-purple rounded-full
+           transition-all duration-1000 ease-in-out;
+  }
+  
+  /* Game screen transitions */
+  .screen-transition {
+    @apply transition-all duration-500 ease-in-out;
+  }
+  
+  /* Hologram effect for special moments */
+  .hologram {
+    @apply relative;
+  }
+  
+  .hologram::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-b from-transparent via-neon-mint/10 to-transparent
+           animate-pulse pointer-events-none;
+  }
+  
+  /* Level up / special moment effects */
+  .level-up-glow {
+    @apply animate-glow border-neon-mint;
+    animation-duration: 2s;
+  }
+  
+  /* Mobile-optimized chat input */
+  .chat-input {
+    @apply w-full px-4 py-3 bg-dark-surface border border-gray-600 rounded-xl
+           text-ui-text-50 placeholder-gray-400 focus:outline-none focus:border-neon-mint
+           focus:ring-2 focus:ring-neon-mint/20 transition-colors duration-200;
+  }
+  
+  /* Character relationship hearts */
+  .relationship-heart {
+    @apply text-neon-pink transition-all duration-300;
+  }
+  
+  .relationship-heart.filled {
+    @apply text-neon-pink drop-shadow-[0_0_8px_rgba(236,72,153,0.6)];
+  }
+  
+  .relationship-heart.empty {
+    @apply text-gray-600;
+  }
+}
+
+/* Utility layer for game-specific utilities */
+@layer utilities {
+  /* Text gradients for special text */
+  .text-gradient-neon {
+    background: linear-gradient(135deg, #00F5D4, #A855F7);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .text-gradient-warm {
+    background: linear-gradient(135deg, #F59E0B, #EF4444);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  /* Safe area padding for mobile */
+  .safe-area-padding {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Loading and error states */
+.loading-shimmer {
+  background: linear-gradient(90deg, 
+    rgba(255,255,255,0.1) 25%, 
+    rgba(255,255,255,0.2) 50%, 
+    rgba(255,255,255,0.1) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}

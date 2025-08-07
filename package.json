@@ -1,0 +1,178 @@
+{
+  "name": "soulmate",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AI Companion RPG Game - 소울메이트",
+  "keywords": [
+    "ai",
+    "game",
+    "companion",
+    "react",
+    "typescript",
+    "claude",
+    "openai",
+    "rpg"
+  ],
+  "author": "Soulmate Development Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/soulmate.git"
+  },
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{js,ts,jsx,tsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{js,ts,jsx,tsx,json,css,md}\"",
+    "clean": "rm -rf dist node_modules/.vite .vercel",
+    "clean:deps": "rm -rf node_modules package-lock.json && npm install",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "analyze": "npx vite-bundle-analyzer dist/stats.html",
+    "setup:env": "cp .env.example .env.local && echo \"Please configure your API keys in .env.local\"",
+    "setup:complete": "npm run install:deps && npm run setup:env && npm run type-check && npm run health-check",
+    "install:deps": "npm install --legacy-peer-deps",
+    "install:production": "npm ci --omit=dev",
+    "deps:check": "npm outdated",
+    "deps:update": "npm update",
+    "deps:audit": "npm audit --audit-level moderate",
+    "deps:fix": "npm audit fix",
+    "ai:generate-content": "node scripts/generate-content.js",
+    "ai:optimize-images": "node scripts/optimize-images.js",
+    "deploy:vercel": "vercel --prod",
+    "deploy:build": "npm run build && npm run analyze",
+    "health-check": "node scripts/health-check.js",
+    "validate:env": "node scripts/validate-env.js",
+    "validate:all": "npm run type-check && npm run lint && npm run validate:env",
+    "preinstall": "node scripts/check-node-version.js",
+    "postinstall": "node scripts/postinstall.js",
+    "automation:setup": "node scripts/setup-automation.js",
+    "phase2:character": "bash scripts/phase2-character.sh",
+    "phase2:battle": "bash scripts/phase2-battle.sh",
+    "phase3:content": "bash scripts/phase3-content.sh",
+    "phase4:deploy": "bash scripts/phase4-deploy.sh",
+    "monitor": "node scripts/monitor-progress.js",
+    "monitor:watch": "node scripts/monitor-progress.js --watch",
+    "generate:component": "node scripts/generate-component.js",
+    "ai:conversations": "node scripts/generate-story-content.js --conversations 100",
+    "ai:events": "node scripts/generate-story-content.js --events 50",
+    "ai:quests": "node scripts/generate-story-content.js --quests 30",
+    "ai:all": "npm run ai:conversations && npm run ai:events && npm run ai:quests"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.3.2",
+    "@supabase/supabase-js": "^2.53.0",
+    "axios": "^1.6.2",
+    "canvas-confetti": "^1.9.2",
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "emoji-mart": "^5.5.2",
+    "framer-motion": "^10.16.16",
+    "immer": "^10.0.3",
+    "lucide-react": "^0.294.0",
+    "nanoid": "^5.0.4",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "react-hook-form": "^7.48.2",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.20.1",
+    "react-use": "^17.4.2",
+    "tailwind-merge": "^2.0.0",
+    "use-sound": "^4.0.1",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^18.4.3",
+    "@commitlint/config-conventional": "^18.4.3",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/canvas-confetti": "^1.6.4",
+    "@types/node": "^20.19.9",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vercel/node": "^5.3.11",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react-swc": "^3.5.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/ui": "^1.0.4",
+    "autoprefixer": "^10.4.16",
+    "commitizen": "^4.3.0",
+    "cross-env": "^7.0.3",
+    "cz-conventional-changelog": "^3.3.0",
+    "eslint": "^8.55.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "husky": "^8.0.3",
+    "jsdom": "^23.0.1",
+    "lint-staged": "^15.2.0",
+    "msw": "^2.0.11",
+    "postcss": "^8.4.32",
+    "prettier": "^3.1.0",
+    "prettier-plugin-tailwindcss": "^0.5.7",
+    "rimraf": "^5.0.5",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0",
+    "vite-bundle-analyzer": "^0.7.0",
+    "vite-plugin-eslint": "^1.8.1",
+    "vite-plugin-pwa": "^0.17.4",
+    "vitest": "^1.0.4",
+    "vitest-canvas-mock": "^0.3.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all",
+      "not ie <= 11"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "volta": {
+    "node": "18.19.0",
+    "npm": "10.2.3"
+  }
+}

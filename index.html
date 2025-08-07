@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>소울메이트 | Soulmate AI Companion</title>
+    <meta name="description" content="AI 컴패니언과 함께하는 특별한 RPG 게임" />
+    
+    <!-- Preload critical fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1a202c" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="소울메이트 | Soulmate AI Companion" />
+    <meta property="og:description" content="AI 컴패니언과 함께하는 특별한 RPG 게임" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://soulmate-game.vercel.app" />
+    <meta property="og:image" content="/og-image.png" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="소울메이트 | Soulmate AI Companion" />
+    <meta name="twitter:description" content="AI 컴패니언과 함께하는 특별한 RPG 게임" />
+    <meta name="twitter:image" content="/twitter-image.png" />
+  </head>
+  <body class="bg-dark-navy text-ui-text-100">
+    <div id="root"></div>
+    
+    <!-- Loading fallback -->
+    <noscript>
+      <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background-color: #1a202c; color: #f7fafc; font-family: Inter, system-ui, sans-serif;">
+        <div style="text-align: center;">
+          <h1 style="font-size: 24px; margin-bottom: 16px;">소울메이트</h1>
+          <p style="margin-bottom: 16px;">JavaScript가 필요한 앱입니다.</p>
+          <p>JavaScript is required to run this app.</p>
+        </div>
+      </div>
+    </noscript>
+    
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
