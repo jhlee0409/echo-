@@ -1,13 +1,16 @@
 // AI Provider Type Definitions
 import type { EmotionType } from '@types'
 
+// Re-export EmotionType for other AI modules
+export type { EmotionType }
+
 export interface AIProvider {
   name: string
   priority: number // Lower number = higher priority
   isEnabled: boolean
   maxTokens: number
   costPerToken: number // Cost per 1K tokens in USD
-  
+
   // Provider-specific methods
   generateResponse: (request: AIRequest) => Promise<AIResponse>
   isHealthy: () => Promise<boolean>
@@ -91,7 +94,6 @@ export interface AIProviderError {
 // Provider Configuration
 export interface ProviderConfig {
   claude: ClaudeConfig
-  openai: OpenAIConfig
   fallback: FallbackConfig
 }
 
@@ -104,18 +106,9 @@ export interface ClaudeConfig {
   rateLimits: RateLimitConfig
 }
 
-export interface OpenAIConfig {
-  apiKey: string
-  baseUrl: string
-  model: string
-  maxTokens: number
-  defaultTemperature: number
-  rateLimits: RateLimitConfig
-}
-
 export interface FallbackConfig {
   enabled: boolean
-  providers: string[] // Provider names in fallback order
+  providers: ('claude' | 'mock')[] // Provider names in fallback order
   maxRetries: number
   retryDelay: number // milliseconds
 }
@@ -147,11 +140,16 @@ export interface AIUsageStats {
   totalRequests: number
   totalTokens: number
   totalCost: number
-  averageResponseTime: number
-  cacheHitRate: number
+  averageResponseTime?: number
+  cacheHitRate?: number
   errorRate: number
   providerUsage: Record<string, ProviderUsage>
-  dailyUsage: DailyUsage[]
+  dailyUsage?: DailyUsage[]
+  cacheStats?: {
+    hits: number
+    misses: number
+    hitRate: number
+  }
 }
 
 export interface ProviderUsage {

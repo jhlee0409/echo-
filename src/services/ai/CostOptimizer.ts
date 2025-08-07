@@ -19,7 +19,7 @@ export class CostOptimizer {
   /**
    * Determine if cache should be used for this request
    */
-  shouldUseCache(request: AIRequest): boolean {
+  shouldUseCache(_request: AIRequest): boolean {
     // Always use cache for cost optimization
     return true
   }
@@ -27,8 +27,8 @@ export class CostOptimizer {
   /**
    * Select the best provider based on cost and performance
    */
-  async selectProvider(request: AIRequest): Promise<string> {
-    // For now, default to 'claude'
+  async selectProvider(_request: AIRequest): Promise<string> {
+    // Default to 'claude' as primary, system will fallback to 'gemini' if needed
     // In a real implementation, this would consider:
     // - Current costs per provider
     // - Performance metrics

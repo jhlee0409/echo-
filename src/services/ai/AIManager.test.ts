@@ -1,14 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AIManager } from './AIManager'
 import { ClaudeProvider } from './providers/ClaudeProvider'
-import { OpenAIProvider } from './providers/OpenAIProvider'
 import { MockProvider } from './providers/MockProvider'
-import { createMockAIRequest, createMockAIResponse, mockFetch } from '@/tests/utils/test-utils'
-import type { ProviderConfig, AIRequest, AIResponse } from './types'
+import {
+  createMockAIRequest,
+  createMockAIResponse,
+  mockFetch,
+} from '@/tests/utils/test-utils'
+import type { ProviderConfig } from './types'
 
 // Mock providers
 vi.mock('./providers/ClaudeProvider')
-vi.mock('./providers/OpenAIProvider')
 vi.mock('./providers/MockProvider')
 
 describe('AIManager', () => {
@@ -30,21 +32,9 @@ describe('AIManager', () => {
           dailyTokenLimit: 1000000,
         },
       },
-      openai: {
-        apiKey: 'test-openai-key',
-        baseUrl: 'https://api.openai.com/v1',
-        model: 'gpt-3.5-turbo',
-        maxTokens: 2048,
-        defaultTemperature: 0.7,
-        rateLimits: {
-          requestsPerMinute: 60,
-          tokensPerMinute: 150000,
-          dailyTokenLimit: 1000000,
-        },
-      },
       fallback: {
         enabled: true,
-        providers: ['claude', 'openai', 'mock'],
+        providers: ['claude', 'mock'],
         maxRetries: 3,
         retryDelay: 1000,
       },
@@ -61,9 +51,8 @@ describe('AIManager', () => {
   describe('Initialization', () => {
     it('should initialize with all providers when API keys are provided', () => {
       aiManager = new AIManager(mockConfig)
-      
+
       expect(ClaudeProvider).toHaveBeenCalledWith(mockConfig.claude)
-      expect(OpenAIProvider).toHaveBeenCalledWith(mockConfig.openai)
       expect(MockProvider).toHaveBeenCalled()
     })
 
@@ -72,11 +61,10 @@ describe('AIManager', () => {
         ...mockConfig,
         claude: { ...mockConfig.claude, apiKey: '' },
       }
-      
+
       aiManager = new AIManager(configWithoutClaude)
-      
+
       expect(ClaudeProvider).not.toHaveBeenCalled()
-      expect(OpenAIProvider).toHaveBeenCalled()
       expect(MockProvider).toHaveBeenCalled()
     })
 
@@ -84,18 +72,16 @@ describe('AIManager', () => {
       const minimalConfig = {
         ...mockConfig,
         claude: { ...mockConfig.claude, apiKey: '' },
-        openai: { ...mockConfig.openai, apiKey: '' },
       }
-      
+
       aiManager = new AIManager(minimalConfig)
-      
+
       expect(MockProvider).toHaveBeenCalled()
     })
   })
 
   describe('Response Generation', () => {
     let mockClaudeProvider: any
-    let mockOpenAIProvider: any
     let mockMockProvider: any
 
     beforeEach(() => {
@@ -104,15 +90,9 @@ describe('AIManager', () => {
         name: 'claude',
         priority: 1,
         isEnabled: true,
-        generateResponse: vi.fn().mockResolvedValue(createMockAIResponse({ provider: 'claude' })),
-        isHealthy: vi.fn().mockResolvedValue(true),
-      }
-
-      mockOpenAIProvider = {
-        name: 'openai',
-        priority: 2,
-        isEnabled: true,
-        generateResponse: vi.fn().mockResolvedValue(createMockAIResponse({ provider: 'openai' })),
+        generateResponse: vi
+          .fn()
+          .mockResolvedValue(createMockAIResponse({ provider: 'claude' })),
         isHealthy: vi.fn().mockResolvedValue(true),
       }
 
@@ -120,12 +100,15 @@ describe('AIManager', () => {
         name: 'mock',
         priority: 10,
         isEnabled: true,
-        generateResponse: vi.fn().mockResolvedValue(createMockAIResponse({ provider: 'mock' })),
+        generateResponse: vi
+          .fn()
+          .mockResolvedValue(createMockAIResponse({ provider: 'mock' })),
         isHealthy: vi.fn().mockResolvedValue(true),
       }
 
-      vi.mocked(ClaudeProvider).mockImplementation(() => mockClaudeProvider as any)
-      vi.mocked(OpenAIProvider).mockImplementation(() => mockOpenAIProvider as any)
+      vi.mocked(ClaudeProvider).mockImplementation(
+        () => mockClaudeProvider as any
+      )
       vi.mocked(MockProvider).mockImplementation(() => mockMockProvider as any)
 
       aiManager = new AIManager(mockConfig)
@@ -137,24 +120,26 @@ describe('AIManager', () => {
 
       expect(response).toBeDefined()
       expect(response.provider).toBe('claude')
-      expect(mockClaudeProvider.generateResponse).toHaveBeenCalledWith(expect.objectContaining({
-        messages: request.messages,
-        context: request.context,
-      }))
+      expect(mockClaudeProvider.generateResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: request.messages,
+          context: request.context,
+        })
+      )
     })
 
     it('should use cache for repeated requests', async () => {
       const request = createMockAIRequest()
-      
+
       // First request
       const response1 = await aiManager.generateResponse(request)
       expect(response1.cached).toBe(false)
-      
+
       // Second request with same content
       const response2 = await aiManager.generateResponse(request)
       expect(response2.cached).toBe(true)
       expect(response2.content).toBe(response1.content)
-      
+
       // Provider should only be called once
       expect(mockClaudeProvider.generateResponse).toHaveBeenCalledTimes(1)
     })
@@ -171,8 +156,8 @@ describe('AIManager', () => {
       const request = createMockAIRequest()
       const response = await aiManager.generateResponse(request)
 
-      expect(response.provider).toBe('openai')
-      expect(mockOpenAIProvider.generateResponse).toHaveBeenCalled()
+      expect(response.provider).toBe('mock')
+      expect(mockMockProvider.generateResponse).toHaveBeenCalled()
     })
 
     it('should fallback to mock provider when all API providers fail', async () => {
@@ -181,13 +166,6 @@ describe('AIManager', () => {
         code: 'SERVER_ERROR',
         message: 'Claude error',
         provider: 'claude',
-        recoverable: true,
-      })
-
-      mockOpenAIProvider.generateResponse.mockRejectedValue({
-        code: 'SERVER_ERROR',
-        message: 'OpenAI error',
-        provider: 'openai',
         recoverable: true,
       })
 
@@ -212,16 +190,15 @@ describe('AIManager', () => {
         try {
           await aiManager.generateResponse(createMockAIRequest())
         } catch (e) {
-          // Expected to fail
+          // Expected to fail - should eventually fall back to mock
         }
       }
 
-      // Reset the mock
-      mockClaudeProvider.generateResponse.mockResolvedValue(createMockAIResponse())
-
-      // Next request should skip Claude due to open circuit
+      // After 5 failures, Claude's circuit breaker should be open
+      // Next request should skip Claude due to open circuit and use mock
       const response = await aiManager.generateResponse(createMockAIRequest())
-      expect(response.provider).toBe('openai')
+
+      expect(response.provider).toBe('mock')
       expect(mockClaudeProvider.generateResponse).toHaveBeenCalledTimes(5) // Not called again
     })
 
@@ -247,14 +224,14 @@ describe('AIManager', () => {
 
       // Use fake timers for retry delays
       vi.useFakeTimers()
-      
+
       const responsePromise = aiManager.generateResponse(request)
-      
+
       // Advance timers to handle retries
       await vi.runAllTimersAsync()
-      
+
       const response = await responsePromise
-      
+
       vi.useRealTimers()
 
       expect(response.provider).toBe('claude')
@@ -273,7 +250,7 @@ describe('AIManager', () => {
       const response = await aiManager.generateResponse(request)
 
       // Should immediately fallback without retrying
-      expect(response.provider).toBe('openai')
+      expect(response.provider).toBe('mock')
       expect(mockClaudeProvider.generateResponse).toHaveBeenCalledTimes(1)
     })
   })
@@ -286,11 +263,13 @@ describe('AIManager', () => {
         name: 'claude',
         priority: 1,
         isEnabled: true,
-        generateResponse: vi.fn().mockResolvedValue(createMockAIResponse({
-          provider: 'claude',
-          tokensUsed: 100,
-          metadata: { totalCost: 0.025 },
-        })),
+        generateResponse: vi.fn().mockResolvedValue(
+          createMockAIResponse({
+            provider: 'claude',
+            tokensUsed: 100,
+            metadata: { totalCost: 0.025 },
+          })
+        ),
         isHealthy: vi.fn().mockResolvedValue(true),
       }
 
@@ -300,11 +279,14 @@ describe('AIManager', () => {
 
     it('should track usage statistics correctly', async () => {
       const request = createMockAIRequest()
-      
+
       // Make several requests
       await aiManager.generateResponse(request)
       await aiManager.generateResponse(request) // Cached
-      await aiManager.generateResponse({ ...request, messages: [{ role: 'user', content: 'Different message' }] })
+      await aiManager.generateResponse({
+        ...request,
+        messages: [{ role: 'user' as const, content: 'Different message' }],
+      })
 
       const stats = aiManager.getUsageStats()
 
@@ -356,11 +338,6 @@ describe('AIManager', () => {
           priority: 1,
           isHealthy: vi.fn().mockResolvedValue(true),
         },
-        openai: {
-          name: 'openai',
-          priority: 2,
-          isHealthy: vi.fn().mockResolvedValue(false),
-        },
         mock: {
           name: 'mock',
           priority: 10,
@@ -368,8 +345,9 @@ describe('AIManager', () => {
         },
       }
 
-      vi.mocked(ClaudeProvider).mockImplementation(() => providers.claude as any)
-      vi.mocked(OpenAIProvider).mockImplementation(() => providers.openai as any)
+      vi.mocked(ClaudeProvider).mockImplementation(
+        () => providers.claude as any
+      )
       vi.mocked(MockProvider).mockImplementation(() => providers.mock as any)
 
       aiManager = new AIManager(mockConfig)
@@ -380,12 +358,10 @@ describe('AIManager', () => {
 
       expect(health).toEqual({
         claude: true,
-        openai: false,
         mock: true,
       })
 
       expect(providers.claude.isHealthy).toHaveBeenCalled()
-      expect(providers.openai.isHealthy).toHaveBeenCalled()
       expect(providers.mock.isHealthy).toHaveBeenCalled()
     })
 
@@ -395,7 +371,6 @@ describe('AIManager', () => {
       const health = await aiManager.checkHealth()
 
       expect(health.claude).toBe(false)
-      expect(health.openai).toBe(false)
       expect(health.mock).toBe(true)
     })
   })

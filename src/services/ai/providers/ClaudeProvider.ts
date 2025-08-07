@@ -1,4 +1,10 @@
-import { AIProvider, AIRequest, AIResponse, AIProviderError, ClaudeConfig } from '../types'
+import {
+  AIProvider,
+  AIRequest,
+  AIResponse,
+  AIProviderError,
+  ClaudeConfig,
+} from '../types'
 import { EmotionType } from '@types'
 
 interface ClaudeMessage {
@@ -54,7 +60,7 @@ export class ClaudeProvider implements AIProvider {
   private apiKey: string
   private model: string
   private defaultTemperature: number
-  private rateLimits: any
+  private _rateLimits: any
 
   constructor(config: ClaudeConfig) {
     this.apiKey = config.apiKey
@@ -62,7 +68,7 @@ export class ClaudeProvider implements AIProvider {
     this.model = config.model
     this.maxTokens = config.maxTokens
     this.defaultTemperature = config.defaultTemperature
-    this.rateLimits = config.rateLimits
+    this._rateLimits = config.rateLimits
 
     if (!this.apiKey) {
       throw new Error('Claude API key is required')
@@ -75,23 +81,23 @@ export class ClaudeProvider implements AIProvider {
     try {
       // Build system prompt from context
       const systemPrompt = this.buildSystemPrompt(request.context)
-      
+
       // Convert messages to Claude format
       const claudeMessages = this.convertMessages(request.messages)
-      
+
       // Build request payload
       const claudeRequest: ClaudeRequest = {
         model: this.model,
         max_tokens: request.options?.maxTokens || this.maxTokens,
         messages: claudeMessages,
         temperature: request.options?.temperature || this.defaultTemperature,
-        system: systemPrompt
+        system: systemPrompt,
       }
 
       console.log(`🤖 Claude request:`, {
         model: claudeRequest.model,
         messageCount: claudeMessages.length,
-        systemLength: systemPrompt.length
+        systemLength: systemPrompt.length,
       })
 
       // Make API call
@@ -100,9 +106,9 @@ export class ClaudeProvider implements AIProvider {
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': this.apiKey,
-          'anthropic-version': '2023-06-01'
+          'anthropic-version': '2023-06-01',
         },
-        body: JSON.stringify(claudeRequest)
+        body: JSON.stringify(claudeRequest),
       })
 
       if (!response.ok) {
@@ -110,7 +116,7 @@ export class ClaudeProvider implements AIProvider {
       }
 
       const claudeResponse: ClaudeResponse = await response.json()
-      
+
       // Extract response content
       const content = claudeResponse.content
         .filter(item => item.type === 'text')
@@ -119,10 +125,11 @@ export class ClaudeProvider implements AIProvider {
 
       // Analyze emotion from response
       const emotion = this.analyzeEmotion(content, request.context)
-      
+
       // Calculate processing time and costs
       const processingTime = Date.now() - startTime
-      const totalTokens = claudeResponse.usage.input_tokens + claudeResponse.usage.output_tokens
+      const totalTokens =
+        claudeResponse.usage.input_tokens + claudeResponse.usage.output_tokens
       const totalCost = (totalTokens / 1000) * this.costPerToken
 
       return {
@@ -140,10 +147,9 @@ export class ClaudeProvider implements AIProvider {
           promptTokens: claudeResponse.usage.input_tokens,
           completionTokens: claudeResponse.usage.output_tokens,
           cacheHit: false,
-          retryCount: 0
-        }
+          retryCount: 0,
+        },
       }
-
     } catch (error) {
       console.error('❌ Claude API Error:', error)
       throw this.createAIError(error, Date.now() - startTime)
@@ -153,7 +159,9 @@ export class ClaudeProvider implements AIProvider {
   private buildSystemPrompt(context: any): string {
     const personality = context.companionPersonality
     const traits = Object.entries(personality)
-      .map(([trait, value]) => `${trait}: ${Math.round((value as number) * 100)}%`)
+      .map(
+        ([trait, value]) => `${trait}: ${Math.round((value as number) * 100)}%`
+      )
       .join(', ')
 
     return `당신은 "${context.companionName}"라는 이름의 AI 컴패니언입니다.
@@ -203,7 +211,7 @@ export class ClaudeProvider implements AIProvider {
       .filter(msg => msg.role !== 'system') // System messages handled separately
       .map(msg => ({
         role: msg.role === 'user' ? 'user' : 'assistant',
-        content: msg.content
+        content: msg.content,
       }))
   }
 
@@ -217,7 +225,7 @@ export class ClaudeProvider implements AIProvider {
       curious: ['궁금', '어떻게', '왜', '무엇', '🤔'],
       playful: ['장난', '재미', '놀자', '히히', '😄', '😜'],
       caring: ['걱정', '괜찮', '도와', '사랑', '❤️', '🥰'],
-      thoughtful: ['생각', '음', '아마', '그런', '🤓']
+      thoughtful: ['생각', '음', '아마', '그런', '🤓'],
     }
 
     let maxScore = 0
@@ -264,18 +272,24 @@ export class ClaudeProvider implements AIProvider {
     return Math.max(0.1, Math.min(1.0, confidence))
   }
 
-  private mapFinishReason(stopReason: string): 'stop' | 'length' | 'content_filter' | 'error' {
+  private mapFinishReason(
+    stopReason: string
+  ): 'stop' | 'length' | 'content_filter' | 'error' {
     switch (stopReason) {
-      case 'end_turn': return 'stop'
-      case 'max_tokens': return 'length'
-      case 'stop_sequence': return 'stop'
-      default: return 'error'
+      case 'end_turn':
+        return 'stop'
+      case 'max_tokens':
+        return 'length'
+      case 'stop_sequence':
+        return 'stop'
+      default:
+        return 'error'
     }
   }
 
   private async handleHttpError(response: Response): Promise<AIProviderError> {
     let errorBody: ClaudeError | null = null
-    
+
     try {
       errorBody = await response.json()
     } catch {
@@ -283,51 +297,52 @@ export class ClaudeProvider implements AIProvider {
     }
 
     const message = errorBody?.error?.message || response.statusText
-    
+
     switch (response.status) {
       case 400:
         return {
           code: 'INVALID_REQUEST',
           message: `Invalid request: ${message}`,
           provider: this.name,
-          recoverable: false
+          recoverable: false,
         }
       case 401:
         return {
           code: 'INVALID_API_KEY',
           message: 'Invalid API key',
           provider: this.name,
-          recoverable: false
+          recoverable: false,
         }
       case 403:
         return {
           code: 'ACCESS_FORBIDDEN',
           message: 'Access forbidden',
           provider: this.name,
-          recoverable: false
+          recoverable: false,
         }
-      case 429:
+      case 429: {
         const retryAfter = response.headers.get('retry-after')
         return {
           code: 'RATE_LIMIT_EXCEEDED',
           message: 'Rate limit exceeded',
           provider: this.name,
           recoverable: true,
-          retryAfter: retryAfter ? parseInt(retryAfter) : 60
+          retryAfter: retryAfter ? parseInt(retryAfter) : 60,
         }
+      }
       case 500:
         return {
           code: 'SERVER_ERROR',
           message: 'Internal server error',
           provider: this.name,
-          recoverable: true
+          recoverable: true,
         }
       default:
         return {
           code: 'UNKNOWN_ERROR',
           message: `HTTP ${response.status}: ${message}`,
           provider: this.name,
-          recoverable: true
+          recoverable: true,
         }
     }
   }
@@ -344,7 +359,7 @@ export class ClaudeProvider implements AIProvider {
         code: 'NETWORK_ERROR',
         message: 'Network connection failed',
         provider: this.name,
-        recoverable: true
+        recoverable: true,
       }
     }
 
@@ -353,7 +368,7 @@ export class ClaudeProvider implements AIProvider {
       message: error.message || 'Unknown error occurred',
       provider: this.name,
       recoverable: true,
-      details: { processingTime }
+      details: { processingTime },
     }
   }
 
@@ -364,13 +379,13 @@ export class ClaudeProvider implements AIProvider {
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': this.apiKey,
-          'anthropic-version': '2023-06-01'
+          'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
           model: this.model,
           max_tokens: 10,
-          messages: [{ role: 'user', content: 'ping' }]
-        })
+          messages: [{ role: 'user', content: 'ping' }],
+        }),
       })
 
       return response.status === 200

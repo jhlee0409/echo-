@@ -1,19 +1,17 @@
-import { 
-  AIProvider, 
-  AIRequest, 
-  AIResponse, 
-  AIProviderError, 
+import {
+  AIProvider,
+  AIRequest,
+  AIResponse,
+  AIProviderError,
   ProviderConfig,
-  CacheEntry,
   CacheKey,
   AIUsageStats,
   RetryStrategy,
-  CircuitBreakerConfig
+  CircuitBreakerConfig,
 } from './types'
 import { ClaudeProvider } from './providers/ClaudeProvider'
-import { OpenAIProvider } from './providers/OpenAIProvider'
 import { MockProvider } from './providers/MockProvider'
-import { PromptEngine } from './PromptEngine'
+// import { PromptEngine } from './PromptEngine' // Temporarily disabled
 import { CacheManager } from './CacheManager'
 import { CostOptimizer } from './CostOptimizer'
 import { ENV } from '@config/env'
@@ -29,12 +27,23 @@ import { ENV } from '@config/env'
  */
 export class AIManager {
   private providers = new Map<string, AIProvider>()
-  private promptEngine: PromptEngine
+  // private _promptEngine: PromptEngine // Temporarily disabled
   private cacheManager: CacheManager
   private costOptimizer: CostOptimizer
-  private usageStats: AIUsageStats
+  private usageStats: AIUsageStats = {
+    totalRequests: 0,
+    totalTokens: 0,
+    totalCost: 0,
+    errorRate: 0,
+    providerUsage: {},
+    cacheStats: {
+      hits: 0,
+      misses: 0,
+      hitRate: 0,
+    },
+  }
   private circuitBreakers = new Map<string, CircuitBreaker>()
-  
+
   private readonly retryStrategy: RetryStrategy = {
     maxRetries: 3,
     baseDelay: 1000,
@@ -44,19 +53,19 @@ export class AIManager {
       'RATE_LIMIT_EXCEEDED',
       'NETWORK_ERROR',
       'TIMEOUT',
-      'SERVER_ERROR'
-    ]
+      'SERVER_ERROR',
+    ],
   }
 
   private readonly circuitBreakerConfig: CircuitBreakerConfig = {
     failureThreshold: 5,
     recoveryTimeout: 30000,
-    monitoringPeriod: 60000
+    monitoringPeriod: 60000,
   }
 
   constructor(config: ProviderConfig) {
     this.initializeProviders(config)
-    this.promptEngine = new PromptEngine()
+    // this._promptEngine = new PromptEngine() // Temporarily disabled
     this.cacheManager = new CacheManager()
     this.costOptimizer = new CostOptimizer()
     this.initializeUsageStats()
@@ -71,13 +80,6 @@ export class AIManager {
       console.log('✅ Claude provider initialized')
     }
 
-    // Initialize OpenAI provider (fallback)
-    if (config.openai.apiKey) {
-      const openaiProvider = new OpenAIProvider(config.openai)
-      this.providers.set('openai', openaiProvider)
-      console.log('✅ OpenAI provider initialized')
-    }
-
     // Always initialize mock provider for development/testing
     const mockProvider = new MockProvider()
     this.providers.set('mock', mockProvider)
@@ -90,11 +92,8 @@ export class AIManager {
   }
 
   private setupCircuitBreakers() {
-    for (const [name, provider] of this.providers) {
-      const breaker = new CircuitBreaker(
-        name,
-        this.circuitBreakerConfig
-      )
+    for (const name of this.providers.keys()) {
+      const breaker = new CircuitBreaker(name, this.circuitBreakerConfig)
       this.circuitBreakers.set(name, breaker)
     }
   }
@@ -108,7 +107,7 @@ export class AIManager {
       cacheHitRate: 0,
       errorRate: 0,
       providerUsage: {},
-      dailyUsage: []
+      dailyUsage: [],
     }
   }
 
@@ -117,27 +116,34 @@ export class AIManager {
    */
   async generateResponse(request: AIRequest): Promise<AIResponse> {
     const startTime = Date.now()
-    
+
     try {
       // Optimize the request (prompt compression, context pruning)
       const optimizedRequest = this.costOptimizer.optimizePrompt(request)
-      
+
       // Check cache first
       const cacheKey = this.generateCacheKey(optimizedRequest)
       const cachedResponse = await this.cacheManager.get(cacheKey)
-      
-      if (cachedResponse && this.costOptimizer.shouldUseCache(optimizedRequest)) {
+
+      if (
+        cachedResponse &&
+        this.costOptimizer.shouldUseCache(optimizedRequest)
+      ) {
         this.updateUsageStats(cachedResponse, startTime, true)
         return {
           ...cachedResponse,
           cached: true,
-          processingTime: Date.now() - startTime
+          processingTime: Date.now() - startTime,
         }
       }
 
       // Select best provider
-      const providerName = await this.costOptimizer.selectProvider(optimizedRequest)
-      const response = await this.executeWithFallback(optimizedRequest, providerName)
+      const providerName =
+        await this.costOptimizer.selectProvider(optimizedRequest)
+      const response = await this.executeWithFallback(
+        optimizedRequest,
+        providerName
+      )
 
       // Cache successful response
       if (response.confidence > 0.7) {
@@ -146,9 +152,11 @@ export class AIManager {
 
       this.updateUsageStats(response, startTime, false)
       return response
-
     } catch (error) {
-      const errorResponse = this.handleError(error as AIProviderError, startTime)
+      const errorResponse = this.handleError(
+        error as AIProviderError,
+        startTime
+      )
       this.updateUsageStats(errorResponse, startTime, false)
       throw error
     }
@@ -158,7 +166,7 @@ export class AIManager {
    * Execute request with intelligent fallback strategy
    */
   private async executeWithFallback(
-    request: AIRequest, 
+    request: AIRequest,
     preferredProvider: string
   ): Promise<AIResponse> {
     const providers = this.getProvidersInOrder(preferredProvider)
@@ -181,12 +189,11 @@ export class AIManager {
         const response = await this.executeWithRetry(provider, request)
         circuitBreaker.recordSuccess()
         return response
-
       } catch (error) {
         const aiError = error as AIProviderError
         lastError = aiError
         circuitBreaker.recordFailure()
-        
+
         console.warn(`❌ ${providerName} failed:`, aiError.message)
 
         // If not recoverable, don't try other providers
@@ -204,7 +211,7 @@ export class AIManager {
    * Execute request with retry logic
    */
   private async executeWithRetry(
-    provider: AIProvider, 
+    provider: AIProvider,
     request: AIRequest
   ): Promise<AIResponse> {
     let attempt = 0
@@ -230,11 +237,14 @@ export class AIManager {
 
         // Calculate backoff delay
         const delay = Math.min(
-          this.retryStrategy.baseDelay * Math.pow(this.retryStrategy.backoffMultiplier, attempt - 1),
+          this.retryStrategy.baseDelay *
+            Math.pow(this.retryStrategy.backoffMultiplier, attempt - 1),
           this.retryStrategy.maxDelay
         )
 
-        console.log(`🔄 Retrying in ${delay}ms (attempt ${attempt}/${this.retryStrategy.maxRetries})`)
+        console.log(
+          `🔄 Retrying in ${delay}ms (attempt ${attempt}/${this.retryStrategy.maxRetries})`
+        )
         await this.sleep(delay)
       }
     }
@@ -275,18 +285,20 @@ export class AIManager {
    */
   private generateCacheKey(request: AIRequest): CacheKey {
     const messagesHash = this.hashString(JSON.stringify(request.messages))
-    const contextHash = this.hashString(JSON.stringify({
-      companionName: request.context.companionName,
-      relationshipLevel: request.context.relationshipLevel,
-      companionEmotion: request.context.companionEmotion,
-      currentScene: request.context.currentScene
-    }))
+    const contextHash = this.hashString(
+      JSON.stringify({
+        companionName: request.context.companionName,
+        relationshipLevel: request.context.relationshipLevel,
+        companionEmotion: request.context.companionEmotion,
+        currentScene: request.context.currentScene,
+      })
+    )
     const optionsHash = this.hashString(JSON.stringify(request.options || {}))
 
     return {
       messages: messagesHash,
       context: contextHash,
-      options: optionsHash
+      options: optionsHash,
     }
   }
 
@@ -297,7 +309,7 @@ export class AIManager {
     let hash = 0
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
+      hash = (hash << 5) - hash + char
       hash = hash & hash // Convert to 32bit integer
     }
     return hash.toString(36)
@@ -307,8 +319,8 @@ export class AIManager {
    * Update usage statistics
    */
   private updateUsageStats(
-    response: AIResponse, 
-    startTime: number, 
+    response: AIResponse,
+    startTime: number,
     cached: boolean
   ) {
     this.usageStats.totalRequests++
@@ -318,12 +330,12 @@ export class AIManager {
     }
 
     const responseTime = Date.now() - startTime
-    this.usageStats.averageResponseTime = 
+    this.usageStats.averageResponseTime =
       (this.usageStats.averageResponseTime + responseTime) / 2
 
     // Update cache hit rate
     const cacheHits = cached ? 1 : 0
-    this.usageStats.cacheHitRate = 
+    this.usageStats.cacheHitRate =
       (this.usageStats.cacheHitRate + cacheHits) / this.usageStats.totalRequests
 
     // Update provider-specific stats
@@ -332,7 +344,7 @@ export class AIManager {
       tokens: 0,
       cost: 0,
       errors: 0,
-      averageResponseTime: 0
+      averageResponseTime: 0,
     }
 
     providerStats.requests++
@@ -340,7 +352,7 @@ export class AIManager {
       providerStats.tokens += response.tokensUsed
       providerStats.cost += response.metadata?.totalCost || 0
     }
-    providerStats.averageResponseTime = 
+    providerStats.averageResponseTime =
       (providerStats.averageResponseTime + responseTime) / 2
 
     this.usageStats.providerUsage[response.provider] = providerStats
@@ -359,7 +371,7 @@ export class AIManager {
 
     // Return fallback response
     return {
-      content: "죄송해요, 지금 대답하기가 어려워요. 잠시 후 다시 말해보세요.",
+      content: '죄송해요, 지금 대답하기가 어려워요. 잠시 후 다시 말해보세요.',
       emotion: 'confused',
       confidence: 0.1,
       tokensUsed: 0,
@@ -373,8 +385,8 @@ export class AIManager {
         promptTokens: 0,
         completionTokens: 0,
         cacheHit: false,
-        retryCount: 0
-      }
+        retryCount: 0,
+      },
     }
   }
 
@@ -390,7 +402,7 @@ export class AIManager {
    */
   async checkHealth(): Promise<Record<string, boolean>> {
     const health: Record<string, boolean> = {}
-    
+
     for (const [name, provider] of this.providers) {
       try {
         health[name] = await provider.isHealthy()
@@ -451,7 +463,7 @@ class CircuitBreaker {
   recordFailure() {
     this.failures++
     this.lastFailureTime = Date.now()
-    
+
     if (this.failures >= this.config.failureThreshold) {
       this.state = 'open'
       console.warn(`🚨 Circuit breaker opened for ${this.name}`)
@@ -474,27 +486,15 @@ export const getAIManager = (): AIManager => {
         rateLimits: {
           requestsPerMinute: 50,
           tokensPerMinute: 100000,
-          dailyTokenLimit: 1000000
-        }
-      },
-      openai: {
-        apiKey: ENV.OPENAI_API_KEY || '',
-        baseUrl: 'https://api.openai.com/v1',
-        model: 'gpt-3.5-turbo',
-        maxTokens: 2048,
-        defaultTemperature: 0.7,
-        rateLimits: {
-          requestsPerMinute: 60,
-          tokensPerMinute: 150000,
-          dailyTokenLimit: 1000000
-        }
+          dailyTokenLimit: 1000000,
+        },
       },
       fallback: {
         enabled: true,
-        providers: ['claude', 'openai', 'mock'],
+        providers: ['claude', 'mock'],
         maxRetries: 3,
-        retryDelay: 1000
-      }
+        retryDelay: 1000,
+      },
     }
 
     aiManagerInstance = new AIManager(config)
