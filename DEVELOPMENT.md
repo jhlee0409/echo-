@@ -6,6 +6,7 @@
 ## 🚀 개발 환경 설정
 
 ### 필수 조건
+
 - Node.js 18.0.0 이상
 - npm 9.0.0 이상
 - Claude API 키
@@ -14,17 +15,20 @@
 ### 빠른 시작
 
 1. **프로젝트 설정 스크립트 실행**
+
    ```bash
    chmod +x setup.sh
    ./setup.sh
    ```
 
 2. **프로젝트 디렉토리로 이동**
+
    ```bash
    cd soulmate
    ```
 
 3. **환경 변수 설정**
+
    ```bash
    cp .env.example .env.local
    # .env.local 파일을 편집하여 API 키 설정
@@ -42,9 +46,8 @@
 ```env
 # API Keys
 VITE_CLAUDE_API_KEY=your_claude_api_key_here
-VITE_OPENAI_API_KEY=your_openai_fallback_key_here
 
-# Supabase Configuration  
+# Supabase Configuration
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 

@@ -347,12 +347,6 @@ interface HealthResponse {
       quota: number | null
       errorRate: number
     }
-    openai: {
-      available: boolean
-      responseTime: number
-      quota: number | null
-      errorRate: number
-    }
     mock: {
       available: boolean
       responseTime: number

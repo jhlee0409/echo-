@@ -56,7 +56,6 @@ echo "⚙️ 환경 변수 템플릿 생성 중..."
 cat > .env.example << EOF
 # API Keys
 VITE_CLAUDE_API_KEY=your_claude_api_key_here
-VITE_OPENAI_API_KEY=your_openai_fallback_key_here
 
 # Supabase Configuration
 VITE_SUPABASE_URL=your_supabase_url
