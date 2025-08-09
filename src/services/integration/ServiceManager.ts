@@ -1,29 +1,74 @@
 /**
  * 🎯 Service Manager
- * 
+ *
  * Central service coordinator that manages all application services
  * Provides service registration, lifecycle management, and dependency resolution
  */
 
-import type { 
+import type {
   ServiceManager as IServiceManager,
   ServiceDefinition,
   ServiceInstance,
   ServiceConfiguration,
-  ServiceHealthCheck,
-  ServiceMetrics 
+  ServiceMetrics,
+  HealthCheckFunction,
 } from './types'
-import { EventEmitter } from 'events'
+// 브라우저 호환 이벤트 emitter (Node 'events' 대체)
+class SimpleEventEmitter {
+  private listeners: Map<string, Set<(...args: any[]) => void>> = new Map()
+  private maxListeners = 10
 
-export class ServiceManager extends EventEmitter implements IServiceManager {
+  on(event: string, listener: (...args: any[]) => void) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set())
+    this.listeners.get(event)!.add(listener)
+    return this
+  }
+
+  off(event: string, listener: (...args: any[]) => void) {
+    this.listeners.get(event)?.delete(listener)
+    return this
+  }
+
+  once(event: string, listener: (...args: any[]) => void) {
+    const wrapper = (...args: any[]) => {
+      this.off(event, wrapper)
+      listener(...args)
+    }
+    return this.on(event, wrapper)
+  }
+
+  emit(event: string, ...args: any[]) {
+    const set = this.listeners.get(event)
+    if (!set) return false
+    for (const listener of Array.from(set)) {
+      try {
+        listener(...args)
+      } catch (e) {
+        // 오류는 상위에서 처리
+        console.error(e)
+      }
+    }
+    return set.size > 0
+  }
+
+  setMaxListeners(n: number) {
+    this.maxListeners = n
+    return this
+  }
+}
+
+export class ServiceManager
+  extends SimpleEventEmitter
+  implements IServiceManager
+{
   private services: Map<string, ServiceInstance> = new Map()
   private configurations: Map<string, ServiceConfiguration> = new Map()
   private dependencyGraph: Map<string, Set<string>> = new Map()
   private initializationOrder: string[] = []
-  private healthChecks: Map<string, ServiceHealthCheck> = new Map()
+  private healthChecks: Map<string, HealthCheckFunction<any>> = new Map()
   private metrics: Map<string, ServiceMetrics> = new Map()
   private isInitialized = false
-  
+
   constructor() {
     super()
     this.setMaxListeners(50) // Allow many service listeners
@@ -43,15 +88,18 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
       singleton: definition.singleton ?? true,
       lazy: definition.lazy ?? false,
       healthCheck: definition.healthCheck,
-      config: definition.config || {}
+      config: definition.config || {},
     })
 
     // Build dependency graph
-    this.dependencyGraph.set(definition.name, new Set(definition.dependencies || []))
+    this.dependencyGraph.set(
+      definition.name,
+      new Set(definition.dependencies || [])
+    )
 
     // Emit registration event
     this.emit('service:registered', definition.name)
-    
+
     console.log(`📦 Service registered: ${definition.name}`)
   }
 
@@ -76,7 +124,9 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
   }
 
   isServiceReady(name: string): boolean {
-    return this.services.has(name) && this.services.get(name)?.status === 'running'
+    return (
+      this.services.has(name) && this.services.get(name)?.status === 'running'
+    )
   }
 
   // Service Lifecycle
@@ -85,23 +135,27 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
       return // Already initialized
     }
 
-    const targetServices = serviceNames || Array.from(this.configurations.keys())
-    
+    const targetServices =
+      serviceNames || Array.from(this.configurations.keys())
+
     try {
       // Calculate initialization order
-      this.initializationOrder = this.calculateInitializationOrder(targetServices)
-      
+      this.initializationOrder =
+        this.calculateInitializationOrder(targetServices)
+
       // Initialize services in dependency order
       for (const serviceName of this.initializationOrder) {
         if (!this.isServiceReady(serviceName)) {
           await this.initializeService(serviceName)
         }
       }
-      
+
       this.isInitialized = true
       this.emit('manager:initialized')
-      
-      console.log(`✅ Service Manager initialized with ${targetServices.length} services`)
+
+      console.log(
+        `✅ Service Manager initialized with ${targetServices.length} services`
+      )
     } catch (error) {
       this.emit('manager:initialization-failed', error)
       throw new Error(`Service Manager initialization failed: ${error}`)
@@ -110,18 +164,18 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
 
   async shutdown(): Promise<void> {
     this.emit('manager:shutting-down')
-    
+
     // Shutdown services in reverse order
     const shutdownOrder = [...this.initializationOrder].reverse()
-    
+
     for (const serviceName of shutdownOrder) {
       await this.shutdownService(serviceName)
     }
-    
+
     this.services.clear()
     this.metrics.clear()
     this.isInitialized = false
-    
+
     this.emit('manager:shutdown')
     console.log('🔴 Service Manager shutdown complete')
   }
@@ -136,7 +190,10 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
   }
 
   // Health Management
-  async healthCheck(): Promise<{ healthy: boolean; services: Record<string, any> }> {
+  async healthCheck(): Promise<{
+    healthy: boolean
+    services: Record<string, any>
+  }> {
     const serviceHealth: Record<string, any> = {}
     let allHealthy = true
 
@@ -150,9 +207,9 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
           serviceHealth[serviceName] = {
             status: result.healthy ? 'healthy' : 'unhealthy',
             message: result.message,
-            lastCheck: Date.now()
+            lastCheck: Date.now(),
           }
-          
+
           if (!result.healthy) {
             allHealthy = false
           }
@@ -160,14 +217,14 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
           serviceHealth[serviceName] = {
             status: service.status,
             message: 'No health check configured',
-            lastCheck: Date.now()
+            lastCheck: Date.now(),
           }
         }
       } catch (error) {
         serviceHealth[serviceName] = {
           status: 'error',
           message: `Health check failed: ${error}`,
-          lastCheck: Date.now()
+          lastCheck: Date.now(),
         }
         allHealthy = false
       }
@@ -179,11 +236,11 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
   // Metrics and Monitoring
   getMetrics(): Record<string, ServiceMetrics> {
     const allMetrics: Record<string, ServiceMetrics> = {}
-    
+
     for (const [serviceName, metrics] of this.metrics) {
       allMetrics[serviceName] = { ...metrics }
     }
-    
+
     return allMetrics
   }
 
@@ -219,7 +276,7 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
 
     try {
       this.emit('service:initializing', serviceName)
-      
+
       // Initialize dependencies first
       for (const dependency of config.dependencies) {
         if (!this.isServiceReady(dependency)) {
@@ -239,9 +296,9 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
         instance,
         status: 'running',
         createdAt: Date.now(),
-        dependencies: config.dependencies
+        dependencies: config.dependencies,
       }
-      
+
       this.services.set(serviceName, serviceInstance)
 
       // Initialize metrics
@@ -250,12 +307,13 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
         lastAccessed: Date.now(),
         accessCount: 0,
         errorCount: 0,
-        memoryUsage: this.estimateMemoryUsage(instance)
+        memoryUsage: this.estimateMemoryUsage(instance),
       })
 
       this.emit('service:initialized', serviceName)
-      console.log(`✅ Service initialized: ${serviceName} (${initializationTime}ms)`)
-      
+      console.log(
+        `✅ Service initialized: ${serviceName} (${initializationTime}ms)`
+      )
     } catch (error) {
       this.emit('service:initialization-failed', serviceName, error)
       throw new Error(`Failed to initialize service ${serviceName}: ${error}`)
@@ -270,7 +328,7 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
 
     try {
       this.emit('service:shutting-down', serviceName)
-      
+
       // Call shutdown method if available
       if (service.instance && typeof service.instance.shutdown === 'function') {
         await service.instance.shutdown()
@@ -278,9 +336,8 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
 
       service.status = 'stopped'
       this.emit('service:shutdown', serviceName)
-      
+
       console.log(`🔴 Service shutdown: ${serviceName}`)
-      
     } catch (error) {
       this.emit('service:shutdown-failed', serviceName, error)
       console.error(`Failed to shutdown service ${serviceName}:`, error)
@@ -311,7 +368,7 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
 
   private resolveDependencies(dependencies: string[]): Record<string, any> {
     const resolved: Record<string, any> = {}
-    
+
     for (const dependency of dependencies) {
       const service = this.getService(dependency)
       if (!service) {
@@ -319,7 +376,7 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
       }
       resolved[dependency] = service
     }
-    
+
     return resolved
   }
 
@@ -330,22 +387,24 @@ export class ServiceManager extends EventEmitter implements IServiceManager {
 
     const visit = (serviceName: string) => {
       if (visiting.has(serviceName)) {
-        throw new Error(`Circular dependency detected involving service: ${serviceName}`)
+        throw new Error(
+          `Circular dependency detected involving service: ${serviceName}`
+        )
       }
-      
+
       if (visited.has(serviceName)) {
         return
       }
 
       visiting.add(serviceName)
-      
+
       const dependencies = this.dependencyGraph.get(serviceName) || new Set()
       for (const dependency of dependencies) {
         if (serviceNames.includes(dependency)) {
           visit(dependency)
         }
       }
-      
+
       visiting.delete(serviceName)
       visited.add(serviceName)
       order.push(serviceName)
