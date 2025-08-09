@@ -4,7 +4,6 @@
 interface EnvConfig {
   // API Keys
   CLAUDE_API_KEY: string
-  OPENAI_API_KEY: string
   
   // Supabase Configuration
   SUPABASE_URL: string
@@ -71,11 +70,6 @@ function loadEnvConfig(): EnvConfig {
         import.meta.env.VITE_CLAUDE_API_KEY,
         'string'
       ),
-      OPENAI_API_KEY: parseEnvVar(
-        import.meta.env.VITE_OPENAI_API_KEY,
-        'string',
-        '' // Fallback 옵션이므로 필수가 아님
-      ),
       
       // Supabase (필수)
       SUPABASE_URL: parseEnvVar(
@@ -141,7 +135,6 @@ function loadEnvConfig(): EnvConfig {
         MAX_DAILY_MESSAGES: config.MAX_DAILY_MESSAGES,
         ENABLE_DEBUG_MODE: config.ENABLE_DEBUG_MODE,
         HAS_CLAUDE_KEY: !!config.CLAUDE_API_KEY,
-        HAS_OPENAI_KEY: !!config.OPENAI_API_KEY,
         HAS_SUPABASE_URL: !!config.SUPABASE_URL,
         HAS_SUPABASE_KEY: !!config.SUPABASE_ANON_KEY,
         FEATURE_FLAGS: {
@@ -211,9 +204,6 @@ export function validateEnvironment(): { valid: boolean; errors: string[] } {
     errors.push('CLAUDE_API_KEY appears to be invalid (should start with sk-)')
   }
 
-  if (ENV.OPENAI_API_KEY && !ENV.OPENAI_API_KEY.startsWith('sk-')) {
-    errors.push('OPENAI_API_KEY appears to be invalid (should start with sk-)')
-  }
 
   // Supabase URL 형식 검증
   if (ENV.SUPABASE_URL && !ENV.SUPABASE_URL.startsWith('https://')) {

@@ -1,10 +1,97 @@
-import { FC } from 'react'
+import { FC, useState, useEffect } from 'react'
 import { useGameStore } from '@hooks'
+import { AdvancedCharacterManager, AdvancedAICompanion } from '@services/character/AdvancedCharacterSystem'
+import CharacterProfile from '@components/character/CharacterProfile'
+import CharacterStats from '@components/character/CharacterStats'
+import CharacterInventory from '@components/character/CharacterInventory'
 
 const CharacterStatus: FC = () => {
   const { companion, gameState } = useGameStore()
+  const [advancedCharacter, setAdvancedCharacter] = useState<AdvancedAICompanion | null>(null)
+  const [characterManager, setCharacterManager] = useState<AdvancedCharacterManager | null>(null)
+  const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'inventory'>('profile')
 
-  if (!companion) {
+  useEffect(() => {
+    // Convert legacy companion to advanced character system
+    if (companion && !advancedCharacter) {
+      const advancedData: Partial<AdvancedAICompanion> = {
+        id: companion.id || `companion_${Date.now()}`,
+        name: companion.name,
+        createdAt: new Date(companion.createdAt || Date.now()),
+        lastInteraction: new Date(),
+        
+        // Map legacy relationship data
+        relationship: {
+          intimacyLevel: companion.relationshipStatus?.level || 1,
+          trustLevel: companion.relationshipStatus?.level || 1,
+          relationshipType: 'friend',
+          conflictHistory: [],
+          specialMoments: [],
+          dailyInteractions: 0,
+          totalInteractions: companion.relationshipStatus?.experience || 0
+        },
+        
+        // Map legacy emotion data
+        emotionalState: {
+          currentEmotion: companion.currentEmotion?.dominant || 'happy',
+          emotionIntensity: companion.currentEmotion?.intensity || 0.6,
+          emotionHistory: [],
+          triggers: [],
+          stability: 0.7
+        },
+        
+        // Map legacy personality traits
+        personality: {
+          core: {
+            cheerful: companion.personalityTraits?.cheerful || 0.7,
+            caring: companion.personalityTraits?.caring || 0.8,
+            playful: companion.personalityTraits?.playful || 0.6,
+            curious: companion.personalityTraits?.curious || 0.9,
+            thoughtful: companion.personalityTraits?.thoughtful || 0.7,
+            supportive: companion.personalityTraits?.supportive || 0.8,
+            independent: companion.personalityTraits?.independent || 0.4,
+            emotional: companion.personalityTraits?.emotional || 0.6,
+            adaptability: 0.5,
+            consistency: 0.7,
+            authenticity: 0.9
+          },
+          current: {
+            dominantMood: companion.currentEmotion?.dominant || 'happy',
+            moodIntensity: companion.currentEmotion?.intensity || 0.6,
+            moodDuration: 0,
+            expectedDuration: 30,
+            timeOfDay: getCurrentTimeOfDay(),
+            dayOfWeek: new Date().getDay()
+          },
+          adaptation: {
+            growthRate: 0.1,
+            influenceFactors: [],
+            personalityHistory: [],
+            developmentStage: 'early',
+            totalGrowthPoints: 0,
+            recentGrowth: [],
+            growthGoals: []
+          }
+        }
+      }
+      
+      const manager = new AdvancedCharacterManager(advancedData)
+      const character = manager.getCharacter()
+      
+      setAdvancedCharacter(character)
+      setCharacterManager(manager)
+    }
+  }, [companion])
+
+  const getCurrentTimeOfDay = (): 'morning' | 'afternoon' | 'evening' | 'night' => {
+    const hour = new Date().getHours()
+    if (hour < 6) return 'night'
+    if (hour < 12) return 'morning' 
+    if (hour < 18) return 'afternoon'
+    return 'evening'
+  }
+
+  if (!companion || !advancedCharacter) {
     return (
       <div className="bg-dark-surface rounded-lg border border-ui-border-100 p-4">
         <div className="text-center text-ui-text-300">
@@ -14,89 +101,85 @@ const CharacterStatus: FC = () => {
     )
   }
 
-  const relationshipLevel = companion.relationshipStatus.level
-  const relationshipProgress = companion.relationshipStatus.experience / companion.relationshipStatus.experienceToNext * 100
+  const relationshipLevel = advancedCharacter.relationship.intimacyLevel
+  const relationshipProgress = Math.min((advancedCharacter.relationship.totalInteractions / 100) * 100, 100)
 
   return (
-    <div className="bg-dark-surface rounded-lg border border-ui-border-100 p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="w-12 h-12 bg-gradient-to-br from-neon-blue to-neon-purple rounded-full animate-glow flex items-center justify-center">
-          <span className="text-lg font-bold text-dark-navy">
-            {companion.name.charAt(0)}
-          </span>
-        </div>
-        <div>
-          <h3 className="font-bold text-ui-text-100">{companion.name}</h3>
-          <p className="text-sm text-ui-text-300">AI 컴패니언</p>
-        </div>
+    <div className="bg-dark-surface rounded-lg border border-ui-border-100 overflow-hidden">
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-ui-border-200 bg-ui-surface-50">
+        {(['profile', 'stats', 'inventory'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === tab
+                ? 'bg-neon-blue text-dark-navy border-b-2 border-neon-blue'
+                : 'text-ui-text-300 hover:text-ui-text-100 hover:bg-ui-surface-100'
+            }`}
+          >
+            {tab === 'profile' ? '프로필' : tab === 'stats' ? '통계' : '인벤토리'}
+          </button>
+        ))}
       </div>
 
-      {/* Relationship Status */}
-      <div className="space-y-2">
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-ui-text-200">관계도</span>
-          <span className="text-sm text-neon-blue">Level {relationshipLevel}</span>
-        </div>
-        <div className="w-full bg-ui-surface-200 rounded-full h-2">
-          <div 
-            className="bg-gradient-to-r from-neon-blue to-neon-purple h-2 rounded-full transition-all duration-500"
-            style={{ width: `${relationshipProgress}%` }}
-          />
-        </div>
-        <div className="text-xs text-ui-text-400">
-          {companion.relationshipStatus.experience} / {companion.relationshipStatus.experienceToNext} XP
-        </div>
+      {/* Tab Content */}
+      <div className="min-h-[400px]">
+        {activeTab === 'profile' && (
+          <div className="p-4">
+            <CharacterProfile 
+              character={advancedCharacter} 
+              showPrivacyControls={true}
+              onCharacterUpdate={(updated) => {
+                setAdvancedCharacter(updated)
+                characterManager?.emit('characterUpdated', updated)
+              }}
+            />
+          </div>
+        )}
+
+        {activeTab === 'stats' && (
+          <div className="p-4">
+            <CharacterStats 
+              character={advancedCharacter} 
+              showDetailed={true}
+            />
+          </div>
+        )}
+
+        {activeTab === 'inventory' && (
+          <div className="p-4">
+            <CharacterInventory 
+              character={advancedCharacter}
+              onItemSelect={(item) => {
+                // Could emit event for game state or show item details
+                console.log('Selected inventory item:', item)
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Personality Traits */}
-      <div className="space-y-3">
-        <h4 className="font-medium text-ui-text-100">성격 특성</h4>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          {Object.entries(companion.personalityTraits).map(([trait, value]) => (
-            <div key={trait} className="space-y-1">
-              <div className="flex justify-between">
-                <span className="text-ui-text-300 capitalize">{trait}</span>
-                <span className="text-neon-blue">{Math.round((value as number) * 100)}%</span>
-              </div>
-              <div className="w-full bg-ui-surface-200 rounded-full h-1">
-                <div 
-                  className="bg-neon-blue h-1 rounded-full transition-all duration-300"
-                  style={{ width: `${(value as number) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Current Mood */}
-      <div className="border-t border-ui-border-200 pt-3 space-y-2">
-        <h4 className="font-medium text-ui-text-100">현재 기분</h4>
-        <div className="flex items-center space-x-2">
-          <span className="text-2xl">{getMoodEmoji(companion.currentEmotion.dominant)}</span>
+      {/* Quick Stats Footer */}
+      <div className="border-t border-ui-border-200 bg-ui-surface-50 px-4 py-2">
+        <div className="grid grid-cols-4 gap-4 text-center text-xs">
           <div>
-            <p className="text-sm text-ui-text-200 capitalize">
-              {companion.currentEmotion.dominant}
-            </p>
-            <p className="text-xs text-ui-text-400">
-              강도: {Math.round(companion.currentEmotion.intensity * 100)}%
-            </p>
+            <p className="font-bold text-neon-blue">{Math.round(relationshipLevel)}</p>
+            <p className="text-ui-text-400">친밀도</p>
           </div>
-        </div>
-      </div>
-
-      {/* Game Stats */}
-      <div className="border-t border-ui-border-200 pt-3 space-y-2">
-        <h4 className="font-medium text-ui-text-100">게임 통계</h4>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="text-center p-2 bg-ui-surface-100 rounded">
-            <p className="text-neon-blue font-bold">{gameState?.conversationCount || 0}</p>
-            <p className="text-xs text-ui-text-400">대화 수</p>
+          <div>
+            <p className="font-bold text-neon-purple">{Math.round(advancedCharacter.relationship.trustLevel)}</p>
+            <p className="text-ui-text-400">신뢰도</p>
           </div>
-          <div className="text-center p-2 bg-ui-surface-100 rounded">
-            <p className="text-neon-purple font-bold">{gameState?.daysSinceStart || 0}</p>
-            <p className="text-xs text-ui-text-400">함께한 일수</p>
+          <div>
+            <p className="font-bold text-neon-green">{advancedCharacter.relationship.totalInteractions}</p>
+            <p className="text-ui-text-400">대화수</p>
+          </div>
+          <div>
+            <p className="font-bold text-yellow-400">
+              {Math.floor((Date.now() - advancedCharacter.createdAt.getTime()) / (1000 * 60 * 60 * 24))}
+            </p>
+            <p className="text-ui-text-400">함께한 일수</p>
           </div>
         </div>
       </div>

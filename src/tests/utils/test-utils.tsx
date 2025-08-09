@@ -52,26 +52,26 @@ export const createMockCompanion = (overrides = {}) => ({
     intimacyLevel: 0.1,
     trustLevel: 0.2,
   },
-  currentEmotion: 'happy',
+  currentEmotion: 'happy' as const,
   ...overrides,
 })
 
 export const createMockAIRequest = (overrides = {}) => ({
   messages: [
-    { role: 'user', content: '안녕하세요!' }
+    { role: 'user' as const, content: '안녕하세요!' }
   ],
   context: {
     companionName: '루나',
     companionPersonality: createMockCompanion().personality,
     relationshipLevel: 1,
     intimacyLevel: 0.1,
-    companionEmotion: 'happy',
+    companionEmotion: 'happy' as const,
     currentScene: 'home',
-    timeOfDay: 'afternoon',
+    timeOfDay: 'afternoon' as const,
     recentTopics: [],
     recentMemories: [],
-    conversationTone: 'casual',
-    userEmotionalState: 'neutral',
+    conversationTone: 'casual' as const,
+    userEmotionalState: 'neutral' as const,
   },
   options: {
     maxTokens: 150,
@@ -82,10 +82,10 @@ export const createMockAIRequest = (overrides = {}) => ({
 
 export const createMockAIResponse = (overrides = {}) => ({
   content: '안녕! 오늘은 어떤 하루를 보내고 있어?',
-  emotion: 'happy',
+  emotion: 'happy' as const,
   confidence: 0.9,
   tokensUsed: 25,
-  provider: 'mock',
+  provider: 'mock' as const,
   processingTime: 150,
   cached: false,
   metadata: {

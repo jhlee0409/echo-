@@ -52,7 +52,7 @@ export function useProjectProgress() {
     efficiency: 75
   })
   
-  const [phases, setPhases] = useState<PhaseData[]>([])
+  const [phases, _setPhases] = useState<PhaseData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
@@ -107,7 +107,7 @@ export function useProjectProgress() {
     })
   }
 
-  const checkFileExists = (path: string): boolean => {
+  const checkFileExists = (_path: string): boolean => {
     // 실제 파일 존재 체크 로직
     // 현재는 더미 데이터 반환
     return Math.random() > 0.5

@@ -35,23 +35,6 @@ const SettingsPage = React.lazy(() => import('@/components/pages/SettingsPage'))
 const AdminPanel = React.lazy(() => import('@/components/admin/AdminPanel'))
 const NotFoundPage = React.lazy(() => import('@/components/pages/NotFoundPage'))
 
-// Game mode specific screens
-const ConversationScreen = React.lazy(
-  () => import('@/components/screens/ConversationScreen')
-)
-const ExplorationScreen = React.lazy(
-  () => import('@/components/screens/ExplorationScreen')
-)
-const BattleScreen = React.lazy(
-  () => import('@/components/screens/BattleScreen')
-)
-const DailyActivityScreen = React.lazy(
-  () => import('@/components/screens/DailyActivityScreen')
-)
-const EmotionSyncScreen = React.lazy(
-  () => import('@/components/screens/EmotionSyncScreen')
-)
-
 // Authentication hooks
 import { useAuthStore } from '@hooks/useAuthStore'
 import { useGameStore } from '@hooks/useGameStore'
@@ -104,48 +87,6 @@ const RouteTransition: React.FC<{ children: React.ReactNode }> = ({
 }
 
 // Game routing component (handles game mode routing)
-const GameRouter: React.FC = () => {
-  return (
-    <Routes>
-      {/* Main game screen with mode router */}
-      <Route path="/" element={<GameApp />} />
-
-      {/* Individual game mode screens */}
-      <Route path="/conversation" element={<ConversationScreen />} />
-      <Route
-        path="/exploration"
-        element={
-          <FeatureGate
-            flag="exploration_mode"
-            fallback={<Navigate to="/conversation" />}
-          >
-            <ExplorationScreen />
-          </FeatureGate>
-        }
-      />
-      <Route path="/battle" element={<BattleScreen />} />
-      <Route
-        path="/daily"
-        element={
-          <FeatureGate
-            flag="daily_activities"
-            fallback={<Navigate to="/conversation" />}
-          >
-            <DailyActivityScreen />
-          </FeatureGate>
-        }
-      />
-      <Route path="/emotion-sync" element={<EmotionSyncScreen />} />
-
-      {/* Character and settings */}
-      <Route path="/profile" element={<ProfilePage />} />
-      <Route path="/settings" element={<SettingsPage />} />
-
-      {/* Catch-all redirect to main game */}
-      <Route path="*" element={<Navigate to="/conversation" replace />} />
-    </Routes>
-  )
-}
 
 // Main app router component
 const AppRouter: React.FC = () => {
@@ -224,7 +165,7 @@ const AppRouter: React.FC = () => {
                 path="/game/*"
                 element={
                   <ProtectedRoute requireAuth={enableAuth}>
-                    <GameRouter />
+                    <GameApp />
                   </ProtectedRoute>
                 }
               />

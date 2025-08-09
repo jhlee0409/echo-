@@ -57,8 +57,7 @@ export default async function handler(
     // 2. 보안 검증 (브루트포스 방지 등)
     const securityValidator = new SecurityValidator();
     const securityCheck = await securityValidator.validateSignInAttempt(
-      signInRequest.email,
-      req.headers['x-forwarded-for'] as string || req.connection.remoteAddress || 'unknown'
+      signInRequest.email
     );
 
     if (!securityCheck.allowed) {
@@ -98,28 +97,43 @@ export default async function handler(
     const authManager = new AuthManager();
     
     try {
-      const authResult = await authManager.signIn(sanitizedEmail, signInRequest.password);
+      const authResult = await authManager.signIn({
+        email: sanitizedEmail,
+        password: signInRequest.password
+      });
       
       // 5. 성공 로그 기록
-      await logAuthEvent('signin_success', {
-        userId: authResult.user.id,
-        email: sanitizedEmail,
-        ip: req.headers['x-forwarded-for'] as string || req.connection.remoteAddress,
-        userAgent: req.headers['user-agent'],
-        timestamp: Date.now()
-      });
+      if (authResult.user) {
+        await logAuthEvent('signin_success', {
+          userId: authResult.user.id,
+          email: sanitizedEmail,
+          ip: req.headers['x-forwarded-for'] as string || req.connection.remoteAddress,
+          userAgent: req.headers['user-agent'],
+          timestamp: Date.now()
+        });
+      }
 
       // 6. 세션 설정 (rememberMe 옵션 처리)
       const sessionDuration = signInRequest.rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60; // 30일 또는 1일
       
-      // 7. 응답 생성
+      // 7. 응답 생성 (null safety checks)
+      if (!authResult.user || !authResult.session) {
+        throw new Error('Authentication result incomplete');
+      }
+
       const response: SignInResponse = {
         success: true,
         user: {
           id: authResult.user.id,
-          email: authResult.user.email,
-          nickname: authResult.user.user_metadata?.nickname || '',
-          profile: authResult.user.user_metadata?.profile || {}
+          email: authResult.user.email || '',
+          nickname: authResult.user.user_metadata?.display_name || '',
+          profile: {
+            avatar: authResult.user.user_metadata?.avatar_url,
+            preferences: {
+              language: (authResult.user.user_metadata?.language as 'ko' | 'en' | 'ja') || 'ko',
+              theme: 'auto' as const
+            }
+          }
         },
         token: {
           access_token: authResult.session.access_token,
@@ -127,7 +141,7 @@ export default async function handler(
           expires_in: sessionDuration
         },
         session: {
-          id: authResult.session.id || '',
+          id: authResult.session.user?.id || '',
           userId: authResult.user.id,
           expiresAt: new Date(Date.now() + sessionDuration * 1000).toISOString(),
           lastActivity: new Date().toISOString(),

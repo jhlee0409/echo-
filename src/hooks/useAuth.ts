@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { 
   AuthUser, 
   AuthSession, 
-  UserProfile, 
   GameAuthContext,
   SignUpRequest,
   SignInRequest,
@@ -10,7 +9,6 @@ import {
   PasswordUpdateRequest,
   ProfileUpdateRequest,
   OAuthProvider,
-  AuthEvent,
   AuthEventPayload
 } from '@services/auth'
 import { getAuthManager } from '@services'
@@ -278,7 +276,7 @@ export const useAuth = () => {
  * Session Management Hook
  */
 export const useSession = () => {
-  const [sessions, setSessions] = useState<any[]>([])
+  const [sessions, _setSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -302,7 +300,7 @@ export const useSession = () => {
   }, [authManager])
 
   // Revoke session
-  const revokeSession = useCallback(async (sessionId: string) => {
+  const revokeSession = useCallback(async (_sessionId: string) => {
     try {
       setLoading(true)
       setError(null)
@@ -368,7 +366,7 @@ export const usePasswordValidation = () => {
 
   const validatePassword = useCallback((
     password: string, 
-    userInfo?: { email?: string, username?: string, displayName?: string }
+    _userInfo?: { email?: string, username?: string, displayName?: string }
   ) => {
     // This would use the SecurityValidator
     // const validator = getSecurityValidator()

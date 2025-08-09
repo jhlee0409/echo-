@@ -298,10 +298,11 @@ function validateGameDataIntegrity(request: SaveRequest): { valid: boolean; erro
     return { valid: true };
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return { 
       valid: false, 
       error: 'Failed to validate game data integrity',
-      details: { error: error.message }
+      details: { error: errorMessage }
     };
   }
 }
@@ -309,7 +310,7 @@ function validateGameDataIntegrity(request: SaveRequest): { valid: boolean; erro
 /**
  * 세이브 속도 제한 확인 (더 엄격함)
  */
-async function checkSaveRateLimit(userId: string): Promise<{
+async function checkSaveRateLimit(_userId: string): Promise<{
   allowed: boolean;
   limit: number;
   remaining: number;
