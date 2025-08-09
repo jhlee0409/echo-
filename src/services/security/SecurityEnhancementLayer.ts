@@ -1,6 +1,6 @@
 /**
  * 🛡️ Security Enhancement Layer
- * 
+ *
  * Multi-layered security system providing comprehensive protection across the application
  * Features:
  * - Input validation and sanitization
@@ -11,7 +11,43 @@
  * - Compliance and audit trails
  */
 
-import { EventEmitter } from 'events'
+// 브라우저 호환 이벤트 emitter (Node 'events' 대체)
+class SimpleEventEmitter {
+  private listeners: Map<string, Set<(...args: any[]) => void>> = new Map()
+
+  on(event: string, listener: (...args: any[]) => void) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set())
+    this.listeners.get(event)!.add(listener)
+    return this
+  }
+
+  off(event: string, listener: (...args: any[]) => void) {
+    this.listeners.get(event)?.delete(listener)
+    return this
+  }
+
+  once(event: string, listener: (...args: any[]) => void) {
+    const wrapper = (...args: any[]) => {
+      this.off(event, wrapper)
+      listener(...args)
+    }
+    return this.on(event, wrapper)
+  }
+
+  emit(event: string, ...args: any[]) {
+    const set = this.listeners.get(event)
+    if (!set) return false
+    for (const listener of Array.from(set)) {
+      try {
+        listener(...args)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    return set.size > 0
+  }
+}
+
 import InputSanitizer from './InputSanitizer'
 // Use Web Crypto API for browser compatibility, fallback to crypto module for Node.js
 // Store contexts for validation during decryption - shared across getCrypto calls in test mode
@@ -21,22 +57,36 @@ const getCrypto = () => {
   // Check if we're in test environment first
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
     // Enhanced mock that simulates AES-GCM context validation
-    const mockBuffer = typeof Buffer !== 'undefined' ? Buffer : {
-      from: (data: any) => ({ toString: (encoding?: string) => String(data) }),
-      alloc: (size: number) => ({ toString: (encoding?: string) => 'mock'.repeat(size) })
-    }
-    
+    const mockBuffer =
+      typeof Buffer !== 'undefined'
+        ? Buffer
+        : {
+            from: (data: any) => ({
+              toString: (encoding?: string) => String(data),
+            }),
+            alloc: (size: number) => ({
+              toString: (encoding?: string) => 'mock'.repeat(size),
+            }),
+          }
+
     return {
       randomBytes: (size: number) => {
-        const bytes = Array(size).fill(0).map(() => Math.floor(Math.random() * 256))
-        const buffer = mockBuffer.from ? mockBuffer.from(bytes) : {
-          toString: (encoding?: string) => bytes.map(b => b.toString(16).padStart(2, '0')).join(''),
-          length: size,
-          [Symbol.iterator]: function* () { for (const byte of bytes) yield byte; }
-        }
+        const bytes = Array(size)
+          .fill(0)
+          .map(() => Math.floor(Math.random() * 256))
+        const buffer = mockBuffer.from
+          ? mockBuffer.from(bytes)
+          : {
+              toString: (encoding?: string) =>
+                bytes.map(b => b.toString(16).padStart(2, '0')).join(''),
+              length: size,
+              [Symbol.iterator]: function* () {
+                for (const byte of bytes) yield byte
+              },
+            }
         // Add isBuffer method for compatibility
         if (typeof Buffer !== 'undefined' && !Buffer.isBuffer(buffer)) {
-          (buffer as any).__isBuffer = true
+          ;(buffer as any).__isBuffer = true
         }
         return buffer
       },
@@ -45,36 +95,51 @@ const getCrypto = () => {
         if (algorithm === 'invalid-algorithm') {
           throw new Error('Invalid algorithm specified')
         }
-        
+
         let aadContext = ''
         let originalData = ''
-        
+
         return {
           setAAD: (data: any) => {
             aadContext = data.toString()
           },
-          update: (data: string, inputEncoding?: string, outputEncoding?: string) => {
+          update: (
+            data: string,
+            inputEncoding?: string,
+            outputEncoding?: string
+          ) => {
             originalData = data
-            const encrypted = outputEncoding === 'hex' ? Buffer.from(data).toString('hex') : data + '_encrypted'
+            const encrypted =
+              outputEncoding === 'hex'
+                ? Buffer.from(data).toString('hex')
+                : data + '_encrypted'
             // Store the context with the encrypted data for later validation
             encryptionContexts.set(encrypted, aadContext)
             return encrypted
           },
-          final: (outputEncoding?: string) => outputEncoding === 'hex' ? '' : '',
-          getAuthTag: () => mockBuffer.from ? mockBuffer.from('mock-tag') : { toString: () => 'mock-tag' }
+          final: (outputEncoding?: string) =>
+            outputEncoding === 'hex' ? '' : '',
+          getAuthTag: () =>
+            mockBuffer.from
+              ? mockBuffer.from('mock-tag')
+              : { toString: () => 'mock-tag' },
         }
       },
       createDecipher: (algorithm: string, key: any) => {
         let aadContext = ''
         let encryptedInput = ''
         let decryptedData = ''
-        
+
         return {
           setAAD: (data: any) => {
             aadContext = data.toString()
           },
           setAuthTag: () => {},
-          update: (data: string, inputEncoding?: string, outputEncoding?: string) => {
+          update: (
+            data: string,
+            inputEncoding?: string,
+            outputEncoding?: string
+          ) => {
             encryptedInput = data
             if (inputEncoding === 'hex' && outputEncoding === 'utf8') {
               decryptedData = Buffer.from(data, 'hex').toString('utf8')
@@ -90,20 +155,28 @@ const getCrypto = () => {
               throw new Error('Authentication verification failed')
             }
             return outputEncoding === 'utf8' ? '' : ''
-          }
+          },
         }
       },
-      pbkdf2Sync: (password: string, salt: string, iterations: number, keylen: number, digest: string) => {
+      pbkdf2Sync: (
+        password: string,
+        salt: string,
+        iterations: number,
+        keylen: number,
+        digest: string
+      ) => {
         const hash = password + salt + '_hashed'
-        const buffer = mockBuffer.from ? mockBuffer.from(hash) : { 
-          toString: (encoding?: string) => hash,
-          length: keylen 
-        }
+        const buffer = mockBuffer.from
+          ? mockBuffer.from(hash)
+          : {
+              toString: (encoding?: string) => hash,
+              length: keylen,
+            }
         return buffer
-      }
+      },
     }
   }
-  
+
   if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
     return window.crypto
   } else if (typeof global !== 'undefined') {
@@ -112,103 +185,175 @@ const getCrypto = () => {
       return crypto
     } catch {
       // Mock crypto for testing/environments without crypto - ensure Buffer is available
-      const mockBuffer = typeof Buffer !== 'undefined' ? Buffer : {
-        from: (data: any) => ({ toString: (encoding?: string) => String(data) }),
-        alloc: (size: number) => ({ toString: (encoding?: string) => 'mock'.repeat(size) })
-      }
-      
+      const mockBuffer =
+        typeof Buffer !== 'undefined'
+          ? Buffer
+          : {
+              from: (data: any) => ({
+                toString: (encoding?: string) => String(data),
+              }),
+              alloc: (size: number) => ({
+                toString: (encoding?: string) => 'mock'.repeat(size),
+              }),
+            }
+
       return {
         randomBytes: (size: number) => {
-          const bytes = Array(size).fill(0).map(() => Math.floor(Math.random() * 256))
-          const buffer = mockBuffer.from ? mockBuffer.from(bytes) : {
-            toString: (encoding?: string) => bytes.map(b => b.toString(16).padStart(2, '0')).join(''),
-            length: size,
-            [Symbol.iterator]: function* () { for (const byte of bytes) yield byte; }
-          }
+          const bytes = Array(size)
+            .fill(0)
+            .map(() => Math.floor(Math.random() * 256))
+          const buffer = mockBuffer.from
+            ? mockBuffer.from(bytes)
+            : {
+                toString: (encoding?: string) =>
+                  bytes.map(b => b.toString(16).padStart(2, '0')).join(''),
+                length: size,
+                [Symbol.iterator]: function* () {
+                  for (const byte of bytes) yield byte
+                },
+              }
           // Add isBuffer method for compatibility
           if (typeof Buffer !== 'undefined' && !Buffer.isBuffer(buffer)) {
-            (buffer as any).__isBuffer = true
+            ;(buffer as any).__isBuffer = true
           }
           return buffer
         },
         createCipher: (algorithm: string, key: any) => ({
           setAAD: () => {},
-          update: (data: string, inputEncoding?: string, outputEncoding?: string) => {
-            return outputEncoding === 'hex' ? Buffer.from(data).toString('hex') : data + '_encrypted'
+          update: (
+            data: string,
+            inputEncoding?: string,
+            outputEncoding?: string
+          ) => {
+            return outputEncoding === 'hex'
+              ? Buffer.from(data).toString('hex')
+              : data + '_encrypted'
           },
-          final: (outputEncoding?: string) => outputEncoding === 'hex' ? '' : '',
-          getAuthTag: () => mockBuffer.from ? mockBuffer.from('mock-tag') : { toString: () => 'mock-tag' }
+          final: (outputEncoding?: string) =>
+            outputEncoding === 'hex' ? '' : '',
+          getAuthTag: () =>
+            mockBuffer.from
+              ? mockBuffer.from('mock-tag')
+              : { toString: () => 'mock-tag' },
         }),
         createDecipher: (algorithm: string, key: any) => ({
           setAAD: () => {},
           setAuthTag: () => {},
-          update: (data: string, inputEncoding?: string, outputEncoding?: string) => {
+          update: (
+            data: string,
+            inputEncoding?: string,
+            outputEncoding?: string
+          ) => {
             if (inputEncoding === 'hex' && outputEncoding === 'utf8') {
               return Buffer.from(data, 'hex').toString('utf8')
             }
             return data.replace('_encrypted', '')
           },
-          final: (outputEncoding?: string) => outputEncoding === 'utf8' ? '' : ''
+          final: (outputEncoding?: string) =>
+            outputEncoding === 'utf8' ? '' : '',
         }),
-        pbkdf2Sync: (password: string, salt: string, iterations: number, keylen: number, digest: string) => {
+        pbkdf2Sync: (
+          password: string,
+          salt: string,
+          iterations: number,
+          keylen: number,
+          digest: string
+        ) => {
           const hash = password + salt + '_hashed'
-          const buffer = mockBuffer.from ? mockBuffer.from(hash) : { 
-            toString: (encoding?: string) => hash,
-            length: keylen 
-          }
+          const buffer = mockBuffer.from
+            ? mockBuffer.from(hash)
+            : {
+                toString: (encoding?: string) => hash,
+                length: keylen,
+              }
           return buffer
-        }
+        },
       }
     }
   }
-  
+
   // Mock for unsupported environments - ensure Buffer is available
-  const mockBuffer = typeof Buffer !== 'undefined' ? Buffer : {
-    from: (data: any) => ({ toString: (encoding?: string) => String(data) }),
-    alloc: (size: number) => ({ toString: (encoding?: string) => 'mock'.repeat(size) })
-  }
-  
+  const mockBuffer =
+    typeof Buffer !== 'undefined'
+      ? Buffer
+      : {
+          from: (data: any) => ({
+            toString: (encoding?: string) => String(data),
+          }),
+          alloc: (size: number) => ({
+            toString: (encoding?: string) => 'mock'.repeat(size),
+          }),
+        }
+
   return {
     randomBytes: (size: number) => {
-      const bytes = Array(size).fill(0).map(() => Math.floor(Math.random() * 256))
-      const buffer = mockBuffer.from ? mockBuffer.from(bytes) : {
-        toString: (encoding?: string) => bytes.map(b => b.toString(16).padStart(2, '0')).join(''),
-        length: size,
-        [Symbol.iterator]: function* () { for (const byte of bytes) yield byte; }
-      }
+      const bytes = Array(size)
+        .fill(0)
+        .map(() => Math.floor(Math.random() * 256))
+      const buffer = mockBuffer.from
+        ? mockBuffer.from(bytes)
+        : {
+            toString: (encoding?: string) =>
+              bytes.map(b => b.toString(16).padStart(2, '0')).join(''),
+            length: size,
+            [Symbol.iterator]: function* () {
+              for (const byte of bytes) yield byte
+            },
+          }
       // Add isBuffer method for compatibility
       if (typeof Buffer !== 'undefined' && !Buffer.isBuffer(buffer)) {
-        (buffer as any).__isBuffer = true
+        ;(buffer as any).__isBuffer = true
       }
       return buffer
     },
     createCipher: (algorithm: string, key: any) => ({
       setAAD: () => {},
-      update: (data: string, inputEncoding?: string, outputEncoding?: string) => {
-        return outputEncoding === 'hex' ? Buffer.from(data).toString('hex') : data + '_encrypted'
+      update: (
+        data: string,
+        inputEncoding?: string,
+        outputEncoding?: string
+      ) => {
+        return outputEncoding === 'hex'
+          ? Buffer.from(data).toString('hex')
+          : data + '_encrypted'
       },
-      final: (outputEncoding?: string) => outputEncoding === 'hex' ? '' : '',
-      getAuthTag: () => mockBuffer.from ? mockBuffer.from('mock-tag') : { toString: () => 'mock-tag' }
+      final: (outputEncoding?: string) => (outputEncoding === 'hex' ? '' : ''),
+      getAuthTag: () =>
+        mockBuffer.from
+          ? mockBuffer.from('mock-tag')
+          : { toString: () => 'mock-tag' },
     }),
     createDecipher: (algorithm: string, key: any) => ({
       setAAD: () => {},
       setAuthTag: () => {},
-      update: (data: string, inputEncoding?: string, outputEncoding?: string) => {
+      update: (
+        data: string,
+        inputEncoding?: string,
+        outputEncoding?: string
+      ) => {
         if (inputEncoding === 'hex' && outputEncoding === 'utf8') {
           return Buffer.from(data, 'hex').toString('utf8')
         }
         return data.replace('_encrypted', '')
       },
-      final: (outputEncoding?: string) => outputEncoding === 'utf8' ? '' : ''
+      final: (outputEncoding?: string) => (outputEncoding === 'utf8' ? '' : ''),
     }),
-    pbkdf2Sync: (password: string, salt: string, iterations: number, keylen: number, digest: string) => {
+    pbkdf2Sync: (
+      password: string,
+      salt: string,
+      iterations: number,
+      keylen: number,
+      digest: string
+    ) => {
       const hash = password + salt + '_hashed'
-      const buffer = mockBuffer.from ? mockBuffer.from(hash) : { 
-        toString: (encoding?: string) => hash,
-        length: keylen 
-      }
+      const buffer = mockBuffer.from
+        ? mockBuffer.from(hash)
+        : {
+            toString: (encoding?: string) => hash,
+            length: keylen,
+          }
       return buffer
-    }
+    },
   }
 }
 
@@ -220,9 +365,9 @@ export type ThreatLevel = 'low' | 'medium' | 'high' | 'critical'
 /**
  * Security event types
  */
-export type SecurityEventType = 
+export type SecurityEventType =
   | 'authentication_attempt'
-  | 'authorization_failure' 
+  | 'authorization_failure'
   | 'suspicious_activity'
   | 'data_access'
   | 'input_validation_failure'
@@ -326,32 +471,32 @@ const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
       /\bwindow\.(location|open)/gi, // Window manipulation
     ],
     sanitizeHtml: true,
-    preventInjection: true
+    preventInjection: true,
   },
   rateLimit: {
     windowMs: 15 * 60 * 1000, // 15 minutes
     maxRequests: 100,
     skipSuccessfulRequests: false,
-    skipFailedRequests: false
+    skipFailedRequests: false,
   },
   encryption: {
     algorithm: 'aes-256-gcm',
     keyLength: 32,
     saltLength: 16,
-    iterations: 100000
+    iterations: 100000,
   },
   monitoring: {
     logLevel: 'warn',
     realTimeAlerts: true,
     retentionDays: 90,
-    alertThreshold: 5
+    alertThreshold: 5,
   },
   compliance: {
     gdprEnabled: true,
     dataRetentionDays: 365,
     auditLogging: true,
-    privacyMode: true
-  }
+    privacyMode: true,
+  },
 }
 
 /**
@@ -368,10 +513,13 @@ interface SecurityEvents {
 /**
  * Main Security Enhancement Layer
  */
-export class SecurityEnhancementLayer extends EventEmitter {
+export class SecurityEnhancementLayer extends SimpleEventEmitter {
   private policy: SecurityPolicy
   private events: SecurityEvent[] = []
-  private rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+  private rateLimitStore = new Map<
+    string,
+    { count: number; resetTime: number }
+  >()
   private encryptionKey: Buffer
   private isEnabled: boolean = true
 
@@ -379,7 +527,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
     super()
     this.policy = { ...DEFAULT_SECURITY_POLICY, ...policy }
     this.encryptionKey = this.generateEncryptionKey()
-    
+
     // Initialize monitoring
     this.initializeMonitoring()
   }
@@ -394,7 +542,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
       level: enabled ? 'low' : 'critical',
       source: 'security-layer',
       description: `Security layer ${enabled ? 'enabled' : 'disabled'}`,
-      metadata: { enabled }
+      metadata: { enabled },
     })
   }
 
@@ -404,13 +552,13 @@ export class SecurityEnhancementLayer extends EventEmitter {
   updatePolicy(updates: Partial<SecurityPolicy>): void {
     const oldPolicy = { ...this.policy }
     this.policy = { ...this.policy, ...updates }
-    
+
     this.logSecurityEvent({
       type: 'system_compromise',
       level: 'medium',
       source: 'policy-update',
       description: 'Security policy updated',
-      metadata: { oldPolicy, newPolicy: this.policy, updates }
+      metadata: { oldPolicy, newPolicy: this.policy, updates },
     })
   }
 
@@ -418,7 +566,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
    * Input validation and sanitization
    */
   validateAndSanitizeInput(
-    input: any, 
+    input: any,
     context: string = 'general',
     userId?: string
   ): ValidationResult {
@@ -430,7 +578,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
       valid: true,
       errors: [],
       warnings: [],
-      riskScore: 0
+      riskScore: 0,
     }
 
     try {
@@ -454,28 +602,28 @@ export class SecurityEnhancementLayer extends EventEmitter {
           source: context,
           userId,
           description: `Input validation failed: ${result.errors.join(', ')}`,
-          metadata: { 
-            input: typeof input === 'string' ? input.substring(0, 100) : '[object]',
+          metadata: {
+            input:
+              typeof input === 'string' ? input.substring(0, 100) : '[object]',
             riskScore: result.riskScore,
-            context 
-          }
+            context,
+          },
         })
       }
 
       result.valid = result.errors.length === 0
-
     } catch (error) {
       result.valid = false
       result.errors.push('Validation process failed')
       result.riskScore = 100
-      
+
       this.logSecurityEvent({
         type: 'system_compromise',
         level: 'critical',
         source: 'input-validation',
         userId,
         description: 'Input validation system error',
-        metadata: { error: (error as Error).message, context }
+        metadata: { error: (error as Error).message, context },
       })
     }
 
@@ -486,76 +634,83 @@ export class SecurityEnhancementLayer extends EventEmitter {
    * Rate limiting check
    */
   checkRateLimit(
-    identifier: string, 
+    identifier: string,
     context: string = 'general',
     userId?: string
-  ): { 
+  ): {
     allowed: boolean
     remaining: number
     resetTime: number
     retryAfter?: number
   } {
     if (!this.isEnabled) {
-      return { allowed: true, remaining: 999, resetTime: Date.now() + this.policy.rateLimit.windowMs }
+      return {
+        allowed: true,
+        remaining: 999,
+        resetTime: Date.now() + this.policy.rateLimit.windowMs,
+      }
     }
 
     const now = Date.now()
     const key = `${context}:${identifier.toLowerCase()}`
-    
+
     let record = this.rateLimitStore.get(key)
-    
+
     if (!record || now > record.resetTime) {
       // Reset window
       record = { count: 1, resetTime: now + this.policy.rateLimit.windowMs }
       this.rateLimitStore.set(key, record)
-      return { 
-        allowed: true, 
+      return {
+        allowed: true,
         remaining: this.policy.rateLimit.maxRequests - 1,
-        resetTime: record.resetTime
+        resetTime: record.resetTime,
       }
     }
-    
+
     if (record.count >= this.policy.rateLimit.maxRequests) {
       const retryAfter = Math.ceil((record.resetTime - now) / 1000)
-      
+
       this.logSecurityEvent({
         type: 'rate_limit_exceeded',
         level: 'medium',
         source: context,
         userId,
         description: `Rate limit exceeded for ${identifier}`,
-        metadata: { identifier, context, attempts: record.count, retryAfter }
+        metadata: { identifier, context, attempts: record.count, retryAfter },
       })
 
       this.emit('rate-limit-exceeded', {
         identifier,
         context,
         attempts: record.count,
-        retryAfter
+        retryAfter,
       })
-      
-      return { 
-        allowed: false, 
+
+      return {
+        allowed: false,
         remaining: 0,
         resetTime: record.resetTime,
-        retryAfter
+        retryAfter,
       }
     }
-    
+
     record.count++
     this.rateLimitStore.set(key, record)
-    
-    return { 
-      allowed: true, 
+
+    return {
+      allowed: true,
       remaining: this.policy.rateLimit.maxRequests - record.count,
-      resetTime: record.resetTime
+      resetTime: record.resetTime,
     }
   }
 
   /**
    * Encrypt sensitive data
    */
-  encryptData(data: string, context: string = 'general'): { 
+  encryptData(
+    data: string,
+    context: string = 'general'
+  ): {
     encrypted: string
     iv: string
     tag: string
@@ -568,19 +723,22 @@ export class SecurityEnhancementLayer extends EventEmitter {
     try {
       const crypto = getCrypto()
       const iv = crypto.randomBytes(12) // 96 bits for GCM
-      const cipher = crypto.createCipher(this.policy.encryption.algorithm, this.encryptionKey)
+      const cipher = crypto.createCipher(
+        this.policy.encryption.algorithm,
+        this.encryptionKey
+      )
       cipher.setAAD(Buffer.from(context)) // Additional authenticated data
-      
+
       let encrypted = cipher.update(data, 'utf8', 'hex')
       encrypted += cipher.final('hex')
-      
+
       const tag = cipher.getAuthTag()
-      
+
       return {
         encrypted,
         iv: iv.toString('hex'),
         tag: tag.toString('hex'),
-        context
+        context,
       }
     } catch (error) {
       this.logSecurityEvent({
@@ -588,9 +746,9 @@ export class SecurityEnhancementLayer extends EventEmitter {
         level: 'critical',
         source: 'encryption',
         description: 'Data encryption failed',
-        metadata: { error: (error as Error).message, context }
+        metadata: { error: (error as Error).message, context },
       })
-      
+
       throw new Error('Encryption failed')
     }
   }
@@ -599,9 +757,9 @@ export class SecurityEnhancementLayer extends EventEmitter {
    * Decrypt sensitive data
    */
   decryptData(
-    encrypted: string, 
-    iv: string, 
-    tag: string, 
+    encrypted: string,
+    iv: string,
+    tag: string,
     context: string = 'general'
   ): string {
     if (!this.isEnabled) {
@@ -610,13 +768,16 @@ export class SecurityEnhancementLayer extends EventEmitter {
 
     try {
       const crypto = getCrypto()
-      const decipher = crypto.createDecipher(this.policy.encryption.algorithm, this.encryptionKey)
+      const decipher = crypto.createDecipher(
+        this.policy.encryption.algorithm,
+        this.encryptionKey
+      )
       decipher.setAAD(Buffer.from(context))
       decipher.setAuthTag(Buffer.from(tag, 'hex'))
-      
+
       let decrypted = decipher.update(encrypted, 'hex', 'utf8')
       decrypted += decipher.final('utf8')
-      
+
       return decrypted
     } catch (error) {
       this.logSecurityEvent({
@@ -624,9 +785,9 @@ export class SecurityEnhancementLayer extends EventEmitter {
         level: 'critical',
         source: 'decryption',
         description: 'Data decryption failed - possible tampering',
-        metadata: { error: (error as Error).message, context }
+        metadata: { error: (error as Error).message, context },
       })
-      
+
       throw new Error('Decryption failed - data may be tampered')
     }
   }
@@ -634,28 +795,35 @@ export class SecurityEnhancementLayer extends EventEmitter {
   /**
    * Generate secure hash
    */
-  generateSecureHash(data: string, salt?: string): { 
+  generateSecureHash(
+    data: string,
+    salt?: string
+  ): {
     hash: string
     salt: string
     algorithm: string
     iterations: number
   } {
     const crypto = getCrypto()
-    const actualSalt = salt || crypto.randomBytes(this.policy.encryption.saltLength).toString('hex')
-    
-    const hash = crypto.pbkdf2Sync(
-      data, 
-      actualSalt, 
-      this.policy.encryption.iterations, 
-      64, 
-      'sha512'
-    ).toString('hex')
-    
+    const actualSalt =
+      salt ||
+      crypto.randomBytes(this.policy.encryption.saltLength).toString('hex')
+
+    const hash = crypto
+      .pbkdf2Sync(
+        data,
+        actualSalt,
+        this.policy.encryption.iterations,
+        64,
+        'sha512'
+      )
+      .toString('hex')
+
     return {
       hash,
       salt: actualSalt,
       algorithm: 'pbkdf2-sha512',
-      iterations: this.policy.encryption.iterations
+      iterations: this.policy.encryption.iterations,
     }
   }
 
@@ -670,17 +838,21 @@ export class SecurityEnhancementLayer extends EventEmitter {
   /**
    * Validate authentication token
    */
-  validateAuthToken(token: string): { valid: boolean; error?: string; userId?: string } {
+  validateAuthToken(token: string): {
+    valid: boolean
+    error?: string
+    userId?: string
+  } {
     if (!token || typeof token !== 'string') {
       return { valid: false, error: 'Token is required' }
     }
-    
+
     // JWT tokens have 3 parts separated by dots
     const parts = token.split('.')
     if (parts.length !== 3) {
       return { valid: false, error: 'Invalid JWT format' }
     }
-    
+
     // Each part should be base64url encoded (allow padding and standard base64 chars)
     const base64UrlRegex = /^[A-Za-z0-9+/=_-]*$/
     if (!parts.every(part => base64UrlRegex.test(part))) {
@@ -692,23 +864,23 @@ export class SecurityEnhancementLayer extends EventEmitter {
       let base64Payload = parts[1]
       // Handle URL-safe base64
       base64Payload = base64Payload.replace(/-/g, '+').replace(/_/g, '/')
-      
+
       // Add padding if needed
       while (base64Payload.length % 4) {
         base64Payload += '='
       }
-      
+
       const payload = JSON.parse(atob(base64Payload))
-      
+
       if (payload.exp && Date.now() >= payload.exp * 1000) {
         return { valid: false, error: 'Token expired' }
       }
 
       const userId = payload.sub || payload.user_id || payload.id
-      
-      return { 
-        valid: true, 
-        userId: userId
+
+      return {
+        valid: true,
+        userId: userId,
       }
     } catch (error) {
       return { valid: false, error: 'Invalid token payload' }
@@ -725,7 +897,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
       'X-Content-Type-Options': 'nosniff',
       'X-XSS-Protection': '1; mode=block',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
-      
+
       // Content Security Policy
       'Content-Security-Policy': [
         "default-src 'self'",
@@ -736,40 +908,39 @@ export class SecurityEnhancementLayer extends EventEmitter {
         "connect-src 'self' https:",
         "frame-ancestors 'none'",
         "base-uri 'self'",
-        "form-action 'self'"
+        "form-action 'self'",
       ].join('; '),
-      
+
       // HSTS
-      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
-      
+      'Strict-Transport-Security':
+        'max-age=31536000; includeSubDomains; preload',
+
       // Permission Policy
       'Permissions-Policy': [
         'camera=()',
         'microphone=()',
         'geolocation=()',
         'payment=()',
-        'usb=()'
+        'usb=()',
       ].join(', '),
-      
+
       // Custom security headers
       'X-Security-Layer': 'active',
-      'X-Content-Type-Validation': 'strict'
+      'X-Content-Type-Validation': 'strict',
     }
   }
 
   /**
    * Detect suspicious activity patterns
    */
-  detectSuspiciousActivity(
-    request: {
-      method: string
-      path: string
-      headers: Record<string, string>
-      body?: any
-      userId?: string
-      ip?: string
-    }
-  ): { suspicious: boolean; reasons: string[]; riskScore: number } {
+  detectSuspiciousActivity(request: {
+    method: string
+    path: string
+    headers: Record<string, string>
+    body?: any
+    userId?: string
+    ip?: string
+  }): { suspicious: boolean; reasons: string[]; riskScore: number } {
     const reasons: string[] = []
     let riskScore = 0
 
@@ -795,8 +966,15 @@ export class SecurityEnhancementLayer extends EventEmitter {
 
     // Check for suspicious paths
     const suspiciousPaths = [
-      '/admin', '/wp-admin', '/.env', '/config', '/backup',
-      '/database', '/phpinfo', '/shell', '/cmd'
+      '/admin',
+      '/wp-admin',
+      '/.env',
+      '/config',
+      '/backup',
+      '/database',
+      '/phpinfo',
+      '/shell',
+      '/cmd',
     ]
     if (suspiciousPaths.some(path => request.path.includes(path))) {
       reasons.push('Suspicious path access')
@@ -808,9 +986,9 @@ export class SecurityEnhancementLayer extends EventEmitter {
       const sqlPatterns = [
         /(\b(union|select|insert|delete|drop|create|alter|exec|execute)\b)/gi,
         /('|(\\)|(;)|(--)|(\|)|(\*)|(\%)).*\b(or|and)\b/gi,
-        /\b(script|javascript|vbscript|onload|onerror)\b/gi
+        /\b(script|javascript|vbscript|onload|onerror)\b/gi,
       ]
-      
+
       if (sqlPatterns.some(pattern => pattern.test(request.body))) {
         reasons.push('Potential injection attempt')
         riskScore += 80
@@ -818,8 +996,13 @@ export class SecurityEnhancementLayer extends EventEmitter {
     }
 
     // Check for missing CSRF token on state-changing operations
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method.toUpperCase())) {
-      if (!request.headers['x-csrf-token'] && !request.headers['x-requested-with']) {
+    if (
+      ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method.toUpperCase())
+    ) {
+      if (
+        !request.headers['x-csrf-token'] &&
+        !request.headers['x-requested-with']
+      ) {
         reasons.push('Missing CSRF protection')
         riskScore += 25
       }
@@ -834,7 +1017,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
         source: 'activity-detector',
         userId: request.userId,
         description: `Suspicious activity detected: ${reasons.join(', ')}`,
-        metadata: { request, riskScore, reasons }
+        metadata: { request, riskScore, reasons },
       })
     }
 
@@ -853,41 +1036,43 @@ export class SecurityEnhancementLayer extends EventEmitter {
     systemHealth: 'healthy' | 'degraded' | 'compromised'
   } {
     const now = Date.now()
-    const last24h = now - (24 * 60 * 60 * 1000)
-    
+    const last24h = now - 24 * 60 * 60 * 1000
+
     const recentEvents = this.events.filter(e => e.timestamp > last24h)
-    
+
     const eventsByType: Record<SecurityEventType, number> = {} as any
     const eventsByLevel: Record<ThreatLevel, number> = {} as any
-    
+
     this.events.forEach(event => {
       eventsByType[event.type] = (eventsByType[event.type] || 0) + 1
       eventsByLevel[event.level] = (eventsByLevel[event.level] || 0) + 1
     })
-    
+
     const topThreats = Object.entries(eventsByType)
       .map(([type, count]) => ({ type: type as SecurityEventType, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5)
-    
+
     let systemHealth: 'healthy' | 'degraded' | 'compromised' = 'healthy'
-    
-    const criticalThreats = recentEvents.filter(e => e.level === 'critical').length
+
+    const criticalThreats = recentEvents.filter(
+      e => e.level === 'critical'
+    ).length
     const highThreats = recentEvents.filter(e => e.level === 'high').length
-    
+
     if (criticalThreats > 0) {
       systemHealth = 'compromised'
     } else if (highThreats > 5 || recentEvents.length > 50) {
       systemHealth = 'degraded'
     }
-    
+
     return {
       totalEvents: this.events.length,
       eventsByType,
       eventsByLevel,
       recentThreats: recentEvents.length,
       topThreats,
-      systemHealth
+      systemHealth,
     }
   }
 
@@ -895,7 +1080,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
    * Export security audit report
    */
   exportSecurityAuditReport(
-    startDate?: Date, 
+    startDate?: Date,
     endDate?: Date
   ): {
     reportId: string
@@ -904,29 +1089,30 @@ export class SecurityEnhancementLayer extends EventEmitter {
     events: SecurityEvent[]
     recommendations: string[]
   } {
-    const start = startDate?.getTime() || (Date.now() - (30 * 24 * 60 * 60 * 1000))
+    const start = startDate?.getTime() || Date.now() - 30 * 24 * 60 * 60 * 1000
     const end = endDate?.getTime() || Date.now()
-    
+
     const filteredEvents = this.events.filter(
       e => e.timestamp >= start && e.timestamp <= end
     )
-    
+
     const metrics = this.getSecurityMetrics()
-    
+
     const recommendations = this.generateSecurityRecommendations(metrics)
-    
+
     return {
       reportId: getCrypto().randomBytes(16).toString('hex'),
       period: { start, end },
       summary: {
         totalEvents: filteredEvents.length,
-        criticalEvents: filteredEvents.filter(e => e.level === 'critical').length,
+        criticalEvents: filteredEvents.filter(e => e.level === 'critical')
+          .length,
         resolvedEvents: filteredEvents.filter(e => e.resolved).length,
         topThreats: metrics.topThreats,
-        systemHealth: metrics.systemHealth
+        systemHealth: metrics.systemHealth,
       },
       events: filteredEvents,
-      recommendations
+      recommendations,
     }
   }
 
@@ -934,25 +1120,29 @@ export class SecurityEnhancementLayer extends EventEmitter {
    * Clear old security events based on retention policy
    */
   cleanupSecurityEvents(): number {
-    const retentionMs = this.policy.compliance.dataRetentionDays * 24 * 60 * 60 * 1000
+    const retentionMs =
+      this.policy.compliance.dataRetentionDays * 24 * 60 * 60 * 1000
     const cutoff = Date.now() - retentionMs
-    
+
     const before = this.events.length
     this.events = this.events.filter(event => event.timestamp > cutoff)
     const after = this.events.length
-    
+
     const cleaned = before - after
-    
+
     if (cleaned > 0) {
       this.logSecurityEvent({
         type: 'system_compromise',
         level: 'low',
         source: 'cleanup',
         description: `Cleaned up ${cleaned} old security events`,
-        metadata: { cleaned, retentionDays: this.policy.compliance.dataRetentionDays }
+        metadata: {
+          cleaned,
+          retentionDays: this.policy.compliance.dataRetentionDays,
+        },
       })
     }
-    
+
     return cleaned
   }
 
@@ -962,15 +1152,22 @@ export class SecurityEnhancementLayer extends EventEmitter {
     const crypto = getCrypto()
     const bytes = crypto.randomBytes(this.policy.encryption.keyLength)
     // Ensure we return a Buffer-like object for tests
-    return typeof Buffer !== 'undefined' && Buffer.isBuffer ? Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes) : bytes as any
+    return typeof Buffer !== 'undefined' && Buffer.isBuffer
+      ? Buffer.isBuffer(bytes)
+        ? bytes
+        : Buffer.from(bytes)
+      : (bytes as any)
   }
 
   private initializeMonitoring(): void {
     // Cleanup old events periodically
-    setInterval(() => {
-      this.cleanupSecurityEvents()
-      this.cleanupRateLimits()
-    }, 60 * 60 * 1000) // Every hour
+    setInterval(
+      () => {
+        this.cleanupSecurityEvents()
+        this.cleanupRateLimits()
+      },
+      60 * 60 * 1000
+    ) // Every hour
   }
 
   private cleanupRateLimits(): void {
@@ -990,23 +1187,26 @@ export class SecurityEnhancementLayer extends EventEmitter {
       escapeHtml: false, // Remove HTML tags instead of escaping
       stripWhitespace: true,
       removeNullBytes: true,
-      removeComments: true
+      removeComments: true,
     })
 
     const sanitizationResult = inputSanitizer.sanitize(input, 'security')
-    
+
     // Merge results
     result.riskScore += sanitizationResult.riskScore
     result.warnings.push(...sanitizationResult.warnings)
-    
+
     // Add errors for blocked items
     if (sanitizationResult.blocked) {
       result.errors.push('Input blocked due to security risks')
     }
-    
+
     // Add errors for high-risk changes
     sanitizationResult.changes.forEach(change => {
-      if (change.reason.includes('blocked pattern') || change.reason.includes('script')) {
+      if (
+        change.reason.includes('blocked pattern') ||
+        change.reason.includes('script')
+      ) {
         result.errors.push(`Dangerous content removed: ${change.reason}`)
       }
     })
@@ -1016,18 +1216,26 @@ export class SecurityEnhancementLayer extends EventEmitter {
 
   private sanitizeObject(input: any, result: ValidationResult): any {
     if (Array.isArray(input)) {
-      return input.map(item => 
-        typeof item === 'string' ? this.sanitizeString(item, result) : 
-        typeof item === 'object' ? this.sanitizeObject(item, result) : item
+      return input.map(item =>
+        typeof item === 'string'
+          ? this.sanitizeString(item, result)
+          : typeof item === 'object'
+            ? this.sanitizeObject(item, result)
+            : item
       )
     }
 
     if (typeof input === 'object' && input !== null) {
       const sanitized: any = {}
       for (const [key, value] of Object.entries(input)) {
-        const sanitizedKey = typeof key === 'string' ? this.sanitizeString(key, result) : key
-        sanitized[sanitizedKey] = typeof value === 'string' ? this.sanitizeString(value, result) :
-                                  typeof value === 'object' ? this.sanitizeObject(value, result) : value
+        const sanitizedKey =
+          typeof key === 'string' ? this.sanitizeString(key, result) : key
+        sanitized[sanitizedKey] =
+          typeof value === 'string'
+            ? this.sanitizeString(value, result)
+            : typeof value === 'object'
+              ? this.sanitizeObject(value, result)
+              : value
       }
       return sanitized
     }
@@ -1035,16 +1243,23 @@ export class SecurityEnhancementLayer extends EventEmitter {
     return input
   }
 
-  private validateAgainstPolicy(input: any, result: ValidationResult, context: string): void {
+  private validateAgainstPolicy(
+    input: any,
+    result: ValidationResult,
+    context: string
+  ): void {
     // Check for injection attempts
-    if (this.policy.inputValidation.preventInjection && typeof input === 'string') {
+    if (
+      this.policy.inputValidation.preventInjection &&
+      typeof input === 'string'
+    ) {
       const injectionPatterns = [
         /(\bunion\b.*\bselect\b)|(\bselect\b.*\bfrom\b)/gi,
         /(\bdrop\b.*\btable\b)|(\bdelete\b.*\bfrom\b)/gi,
         /<script\b/gi,
         /javascript:/gi,
         /\bon\w+\s*=/gi,
-        /\beval\s*\(/gi
+        /\beval\s*\(/gi,
       ]
 
       injectionPatterns.forEach(pattern => {
@@ -1056,13 +1271,15 @@ export class SecurityEnhancementLayer extends EventEmitter {
     }
   }
 
-  private logSecurityEvent(eventData: Omit<SecurityEvent, 'id' | 'timestamp' | 'resolved' | 'actions'>): void {
+  private logSecurityEvent(
+    eventData: Omit<SecurityEvent, 'id' | 'timestamp' | 'resolved' | 'actions'>
+  ): void {
     const event: SecurityEvent = {
       id: getCrypto().randomBytes(16).toString('hex'),
       timestamp: Date.now(),
       resolved: false,
       actions: [],
-      ...eventData
+      ...eventData,
     }
 
     this.events.push(event)
@@ -1077,13 +1294,16 @@ export class SecurityEnhancementLayer extends EventEmitter {
 
     // Log to console based on log level
     if (this.shouldLog(event.level)) {
-      console.log(`🛡️ Security Event [${event.level.toUpperCase()}]: ${event.description}`, {
-        id: event.id,
-        type: event.type,
-        source: event.source,
-        userId: event.userId,
-        metadata: event.metadata
-      })
+      console.log(
+        `🛡️ Security Event [${event.level.toUpperCase()}]: ${event.description}`,
+        {
+          id: event.id,
+          type: event.type,
+          source: event.source,
+          userId: event.userId,
+          metadata: event.metadata,
+        }
+      )
     }
   }
 
@@ -1092,7 +1312,7 @@ export class SecurityEnhancementLayer extends EventEmitter {
     const threatLevels = ['low', 'medium', 'high', 'critical']
     const currentLevelIndex = levels.indexOf(this.policy.monitoring.logLevel)
     const eventLevelIndex = threatLevels.indexOf(level)
-    
+
     return eventLevelIndex >= currentLevelIndex
   }
 
@@ -1100,23 +1320,33 @@ export class SecurityEnhancementLayer extends EventEmitter {
     const recommendations: string[] = []
 
     if (metrics.systemHealth === 'compromised') {
-      recommendations.push('시스템이 위험한 상태입니다. 즉시 보안 점검이 필요합니다.')
+      recommendations.push(
+        '시스템이 위험한 상태입니다. 즉시 보안 점검이 필요합니다.'
+      )
     }
 
     if (metrics.eventsByLevel.critical > 0) {
-      recommendations.push('치명적인 보안 위협이 감지되었습니다. 보안팀에 즉시 연락하세요.')
+      recommendations.push(
+        '치명적인 보안 위협이 감지되었습니다. 보안팀에 즉시 연락하세요.'
+      )
     }
 
     if (metrics.eventsByType.rate_limit_exceeded > 10) {
-      recommendations.push('과도한 요청이 감지되었습니다. Rate limiting 정책을 강화하세요.')
+      recommendations.push(
+        '과도한 요청이 감지되었습니다. Rate limiting 정책을 강화하세요.'
+      )
     }
 
     if (metrics.eventsByType.input_validation_failure > 5) {
-      recommendations.push('입력 검증 실패가 자주 발생합니다. 클라이언트 측 검증을 강화하세요.')
+      recommendations.push(
+        '입력 검증 실패가 자주 발생합니다. 클라이언트 측 검증을 강화하세요.'
+      )
     }
 
     if (recommendations.length === 0) {
-      recommendations.push('현재 보안 상태가 양호합니다. 정기적인 모니터링을 계속하세요.')
+      recommendations.push(
+        '현재 보안 상태가 양호합니다. 정기적인 모니터링을 계속하세요.'
+      )
     }
 
     return recommendations
@@ -1126,7 +1356,9 @@ export class SecurityEnhancementLayer extends EventEmitter {
 // Export singleton instance
 let securityLayerInstance: SecurityEnhancementLayer | null = null
 
-export const getSecurityLayer = (policy?: Partial<SecurityPolicy>): SecurityEnhancementLayer => {
+export const getSecurityLayer = (
+  policy?: Partial<SecurityPolicy>
+): SecurityEnhancementLayer => {
   if (!securityLayerInstance) {
     securityLayerInstance = new SecurityEnhancementLayer(policy)
   }
