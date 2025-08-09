@@ -26,6 +26,10 @@ export {
 } from './SettingsStateAdapter'
 export { UIStateAdapter, useUIStateAdapter } from './UIStateAdapter'
 
+export { getCharacterStateAdapter } from './CharacterStateAdapter'
+export { getConversationStateAdapter } from './ConversationStateAdapter'
+export { getGameStateAdapter } from './GameStateAdapter'
+
 // Re-export types for convenience
 export type {
   GameStateAPI,
