@@ -1,6 +1,6 @@
 /**
  * 🎮 Game App - Main Game Application Container
- * 
+ *
  * Central container that orchestrates:
  * - Game UI Provider integration
  * - Game Router integration
@@ -26,33 +26,30 @@ import { FeatureFlagsPanel } from '@components/admin/FeatureFlagsPanel'
 
 // Hooks
 import { useGameStore } from '@hooks/useGameStore'
-
+import { bootstrapServiceIntegration } from '@services/integration'
 
 // Performance optimization
-const ResponsiveLayout = React.lazy(() => import('@components/ui/responsive/ResponsiveLayout'))
+const ResponsiveLayout = React.lazy(
+  () => import('@components/ui/responsive/ResponsiveLayout')
+)
 
 // Error fallback component
-const GameErrorFallback = ({ 
-  error, 
-  resetErrorBoundary 
-}: { 
-  error: Error; 
-  resetErrorBoundary: () => void 
+const GameErrorFallback = ({
+  error,
+  resetErrorBoundary,
+}: {
+  error: Error
+  resetErrorBoundary: () => void
 }) => (
-  <div className="min-h-screen bg-dark-navy flex items-center justify-center p-4">
-    <div className="bg-dark-surface rounded-xl border border-ui-border-100 p-8 text-center max-w-md">
-      <div className="text-6xl mb-4">💥</div>
-      <h1 className="text-2xl font-bold text-red-400 mb-4">
+  <div className="flex min-h-screen items-center justify-center bg-dark-navy p-4">
+    <div className="border-ui-border-100 max-w-md rounded-xl border bg-dark-surface p-8 text-center">
+      <div className="mb-4 text-6xl">💥</div>
+      <h1 className="mb-4 text-2xl font-bold text-red-400">
         게임 오류가 발생했습니다
       </h1>
-      <p className="text-ui-text-300 mb-4 text-sm">
-        {error.message}
-      </p>
+      <p className="text-ui-text-300 mb-4 text-sm">{error.message}</p>
       <div className="space-x-4">
-        <button
-          onClick={resetErrorBoundary}
-          className="btn-neon"
-        >
+        <button onClick={resetErrorBoundary} className="btn-neon">
           다시 시도
         </button>
         <button
@@ -67,23 +64,29 @@ const GameErrorFallback = ({
 )
 
 // Game initialization component
-const GameInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const GameInitializer: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const { initialize, isInitialized, error } = useGameStore()
-  
+
   useEffect(() => {
     if (!isInitialized && !error) {
       initialize()
+      // 서비스 통합 시스템 부트스트랩 (중복 호출 안전)
+      bootstrapServiceIntegration().catch(e => {
+        console.error('Service Integration bootstrap failed:', e)
+      })
     }
   }, [initialize, isInitialized, error])
-  
+
   if (error) {
     return (
-      <div className="min-h-screen bg-dark-navy flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-dark-navy">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-400 mb-4">
+          <h1 className="mb-4 text-2xl font-bold text-red-400">
             게임 초기화 실패
           </h1>
-          <p className="text-gray-300 mb-6">{error}</p>
+          <p className="mb-6 text-gray-300">{error}</p>
           <button onClick={initialize} className="btn-neon">
             다시 시도
           </button>
@@ -91,36 +94,38 @@ const GameInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) 
       </div>
     )
   }
-  
+
   if (!isInitialized) {
     return <LoadingScreen />
   }
-  
+
   return <>{children}</>
 }
 
 // Performance monitoring component
-const PerformanceMonitor: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const PerformanceMonitor: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const performanceEnabled = useFeatureFlag('performance_monitoring')
-  
+
   useEffect(() => {
     if (!performanceEnabled) return
-    
+
     // Performance monitoring setup
-    const observer = new PerformanceObserver((list) => {
+    const observer = new PerformanceObserver(list => {
       const entries = list.getEntries()
-      entries.forEach((entry) => {
+      entries.forEach(entry => {
         if (entry.entryType === 'measure') {
           console.log(`Performance: ${entry.name} took ${entry.duration}ms`)
         }
       })
     })
-    
+
     observer.observe({ entryTypes: ['measure'] })
-    
+
     return () => observer.disconnect()
   }, [performanceEnabled])
-  
+
   return <>{children}</>
 }
 
@@ -128,7 +133,7 @@ const PerformanceMonitor: React.FC<{ children: React.ReactNode }> = ({ children 
 const FeatureFlagDebug: React.FC = () => {
   const [showPanel, setShowPanel] = React.useState(false)
   const debugMode = useFeatureFlag('debug_mode')
-  
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       // Ctrl/Cmd + Shift + F to toggle feature flags panel
@@ -137,15 +142,15 @@ const FeatureFlagDebug: React.FC = () => {
         setShowPanel(!showPanel)
       }
     }
-    
+
     if (debugMode) {
       document.addEventListener('keydown', handleKeyPress)
       return () => document.removeEventListener('keydown', handleKeyPress)
     }
   }, [debugMode, showPanel])
-  
+
   if (!debugMode) return null
-  
+
   return (
     <FeatureFlagsPanel
       isOpen={showPanel}
@@ -158,14 +163,14 @@ const FeatureFlagDebug: React.FC = () => {
 // Main GameApp component
 const GameApp: React.FC = () => {
   const newUIEnabled = useFeatureFlag('new_ui_design')
-  
+
   return (
     <ErrorBoundary FallbackComponent={GameErrorFallback}>
       <FeatureFlagProvider>
         <GameUIProvider>
           <PerformanceMonitor>
             <GameInitializer>
-              <div className="min-h-screen bg-dark-navy text-ui-text-50 relative overflow-hidden">
+              <div className="relative min-h-screen overflow-hidden bg-dark-navy text-ui-text-50">
                 {/* Responsive Layout Container */}
                 {newUIEnabled ? (
                   <Suspense fallback={<LoadingScreen />}>
@@ -176,15 +181,15 @@ const GameApp: React.FC = () => {
                 ) : (
                   <GameRouter />
                 )}
-                
+
                 {/* Animation System - integrated via individual components */}
-                
+
                 {/* Feature Flag Debug Panel */}
                 <FeatureFlagDebug />
-                
+
                 {/* Development helpers */}
                 {process.env.NODE_ENV === 'development' && (
-                  <div className="fixed bottom-4 right-4 text-xs text-ui-text-400 font-mono bg-dark-surface/80 px-2 py-1 rounded">
+                  <div className="text-ui-text-400 fixed bottom-4 right-4 rounded bg-dark-surface/80 px-2 py-1 font-mono text-xs">
                     Game App v0.1.0
                   </div>
                 )}
