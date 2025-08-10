@@ -28,6 +28,10 @@ import { FeatureFlagsPanel } from '@components/admin/FeatureFlagsPanel'
 import { useGameStore } from '@hooks/useGameStore'
 import { bootstrapServiceIntegration } from '@services/integration'
 
+// Service Testing (development only)
+import { runServiceIntegrationTest } from '@utils/serviceTest'
+import { ENV, isDevelopment } from '@config/env'
+
 // Performance optimization
 const ResponsiveLayout = React.lazy(
   () => import('@components/ui/responsive/ResponsiveLayout')
@@ -72,10 +76,35 @@ const GameInitializer: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (!isInitialized && !error) {
       initialize()
+      
       // 서비스 통합 시스템 부트스트랩 (중복 호출 안전)
       bootstrapServiceIntegration().catch(e => {
         console.error('Service Integration bootstrap failed:', e)
       })
+      
+      // 개발 모드에서만 서비스 테스트 실행
+      if (isDevelopment && ENV.ENABLE_DEBUG_MODE) {
+        console.log('🧪 Running service integration test in development mode...')
+        runServiceIntegrationTest().then(results => {
+          console.group('🧪 Service Integration Test Results')
+          results.forEach(result => {
+            const icon = result.status === 'success' ? '✅' : result.status === 'warning' ? '⚠️' : '❌'
+            console.log(`${icon} ${result.service}: ${result.message}`)
+            if (result.details) {
+              console.log('Details:', result.details)
+            }
+          })
+          console.groupEnd()
+          
+          // 전역 객체에 테스트 함수들 노출 (개발용)
+          if (typeof window !== 'undefined') {
+            // @ts-ignore
+            window.testServices = runServiceIntegrationTest
+          }
+        }).catch(e => {
+          console.warn('Service integration test failed:', e)
+        })
+      }
     }
   }, [initialize, isInitialized, error])
 

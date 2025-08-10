@@ -110,3 +110,9 @@ storybook-static/
 *.zip
 *.tar.gz
 *.rar
+
+# Generated migration reports
+migration-report.json
+
+# Temporary execution plans
+execution-plan.md
