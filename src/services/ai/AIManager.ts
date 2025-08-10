@@ -31,6 +31,17 @@ class SimpleCache {
   getStats() {
     return { size: this.cache.size, hitRate: 0 }
   }
+  
+  async cleanup(): Promise<void> {
+    // Clean up expired entries
+    const now = Date.now()
+    for (const [key, item] of this.cache.entries()) {
+      if (now > item.expires) {
+        this.cache.delete(key)
+      }
+    }
+    console.log(`🧹 Cache cleanup completed. Remaining entries: ${this.cache.size}`)
+  }
 }
 import { CostOptimizer } from './CostOptimizer'
 import { ENV } from '@config/env'
@@ -445,6 +456,31 @@ export class AIManager {
     }
 
     return health
+  }
+
+  /**
+   * Check overall health of AI Manager
+   */
+  async isHealthy(): Promise<boolean> {
+    try {
+      const healthStatus = await this.getHealthStatus()
+      
+      // Consider healthy if at least one provider is healthy
+      const healthyProviders = Object.values(healthStatus).filter(status => status === true)
+      const isHealthy = healthyProviders.length > 0
+      
+      console.log('🏥 AI Manager Health Status:', {
+        totalProviders: Object.keys(healthStatus).length,
+        healthyProviders: healthyProviders.length,
+        overallHealth: isHealthy,
+        providerStatus: healthStatus
+      })
+      
+      return isHealthy
+    } catch (error) {
+      console.error('❌ Health check failed:', error)
+      return false
+    }
   }
 
   /**
