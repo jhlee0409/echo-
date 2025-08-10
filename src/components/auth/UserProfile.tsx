@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
+import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
 import { authService } from '@/services/auth/AuthService'
 import { userProfileService } from '@/services/database/SupabaseService'
 import type { AuthState } from '@/services/auth/AuthService'
@@ -315,7 +315,7 @@ export const UserProfileComponent: React.FC<UserProfileProps> = ({
           <Button
             type="button"
             onClick={handleSignOut}
-            variant="outline"
+            variant="secondary"
             disabled={isLoading || isSaving}
             loading={isLoading}
           >
@@ -326,7 +326,7 @@ export const UserProfileComponent: React.FC<UserProfileProps> = ({
             <Button
               type="button"
               onClick={onClose}
-              variant="outline"
+              variant="secondary"
               disabled={isSaving}
             >
               취소

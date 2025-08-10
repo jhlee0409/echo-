@@ -4,9 +4,9 @@
  * Shows unit status bars, turn counter, and battle controls
  */
 
-import React from 'react'
+// React import removed - not needed with new JSX transform
 import { motion } from 'framer-motion'
-import type { BattleUnit } from '@systems/battle/types'
+import type { BattleUnit } from '@/systems/battle/types'
 
 interface BattleHUDProps {
   playerTeam: BattleUnit[]

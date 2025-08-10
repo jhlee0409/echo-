@@ -4,7 +4,7 @@
  * Complete battle interface with real-time combat visualization
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { 
   BattleResult, 
@@ -12,14 +12,14 @@ import type {
   BattleUnit, 
   BattleEvent,
   BattleLogEntry 
-} from '@systems/battle/types'
-import { AutoBattleSystem } from '@systems/battle/AutoBattleSystem'
+} from '@/systems/battle/types'
+import { AutoBattleSystem } from '@/systems/battle/AutoBattleSystem'
 import { BattleHUD } from './BattleHUD'
 import { BattleField } from './BattleField'
 import { BattleLog } from './BattleLog'
 import { SkillMenu } from './SkillMenu'
 import { BattleVictoryScreen } from './BattleVictoryScreen'
-import { useCharacterContext } from '@contexts/CharacterContext'
+// import { useCharacterContext } from '@/contexts/CharacterContext' // Context not found
 
 interface BattleScreenProps {
   initialFormation: BattleFormation
@@ -44,7 +44,7 @@ export function BattleScreen({
   const [selectedUnit, setSelectedUnit] = useState<BattleUnit | null>(null)
   const [battleEvents, setBattleEvents] = useState<BattleEvent[]>([])
   
-  const { updateCharacterExperience, updateCharacterRelationship } = useCharacterContext()
+  // const { updateCharacterExperience, updateCharacterRelationship } = useCharacterContext() // Context not available
 
   // Initialize battle system
   useEffect(() => {
@@ -96,7 +96,7 @@ export function BattleScreen({
   }, [])
 
   const handleTurnEnd = useCallback((event: BattleEvent) => {
-    const { turn } = event.data
+    // const { turn } = event.data // Turn data not currently used
     // Update formation with latest unit states
     // This would need to be implemented based on battle system integration
     setBattleEvents(prev => [...prev, event])

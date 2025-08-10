@@ -4,9 +4,9 @@
  * 3D-style battle arena with animated units and effects
  */
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { BattleFormation, BattleUnit, BattleEvent } from '@systems/battle/types'
+import type { BattleFormation, BattleUnit, BattleEvent } from '@/systems/battle/types'
 
 interface BattleFieldProps {
   formation: BattleFormation

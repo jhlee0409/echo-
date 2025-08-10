@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { BattleUnit, BattleSkill } from '@systems/battle/types'
+import type { BattleUnit, BattleSkill } from '@/systems/battle/types'
 
 interface SkillMenuProps {
   unit: BattleUnit

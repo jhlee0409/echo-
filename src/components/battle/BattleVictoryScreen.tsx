@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { BattleResult, BattleRewards } from '@systems/battle/types'
+import type { BattleResult, BattleRewards } from '@/systems/battle/types'
 
 interface BattleVictoryScreenProps {
   result: BattleResult

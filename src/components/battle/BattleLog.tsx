@@ -4,9 +4,9 @@
  * Real-time battle event logging with auto-scroll and filtering
  */
 
-import React, { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { BattleLogEntry } from '@systems/battle/types'
+import type { BattleLogEntry } from '@/systems/battle/types'
 
 interface BattleLogProps {
   entries: BattleLogEntry[]

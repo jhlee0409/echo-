@@ -20,4 +20,4 @@ export type {
   BattleLogEntry,
   BattleEvent,
   BattleConfig
-} from '@systems/battle/types'
+} from '@/systems/battle/types'

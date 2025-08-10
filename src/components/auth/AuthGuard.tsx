@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { authService } from '@/services/auth/AuthService'
-import { LoadingScreen } from '@/components/ui/LoadingScreen'
+import LoadingScreen from '@/components/ui/LoadingScreen'
 import { AuthModal } from './AuthModal'
 import type { AuthState } from '@/services/auth/AuthService'
 

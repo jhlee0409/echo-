@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useCallback } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
+import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
 import { authService } from '@/services/auth/AuthService'
 import type { SignInData } from '@/services/auth/AuthService'
 

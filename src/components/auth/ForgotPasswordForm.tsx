@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useCallback } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
+import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
 import { authService } from '@/services/auth/AuthService'
 
 interface ForgotPasswordFormProps {
@@ -135,7 +135,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
           <div className="flex space-x-3">
             <Button
               onClick={handleBackToLogin}
-              variant="outline"
+              variant="secondary"
               className="flex-1"
             >
               로그인으로 돌아가기
@@ -197,7 +197,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
               <Button
                 type="button"
                 onClick={handleBackToLogin}
-                variant="outline"
+                variant="secondary"
                 className="flex-1"
                 disabled={isLoading}
               >
