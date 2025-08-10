@@ -1,6 +1,5 @@
 // AI Services
 export { AIManager, getAIManager } from './AIManager'
-export { CacheManager } from './CacheManager'
 export { CostOptimizer } from './CostOptimizer'
 export { PromptEngine } from './PromptEngine'
 export { ClaudeProvider } from './providers/ClaudeProvider'
@@ -14,7 +13,5 @@ export type {
   AIProviderError,
   ProviderConfig,
   ClaudeConfig,
-  CacheEntry,
-  CacheKey,
   EmotionType,
 } from './types'

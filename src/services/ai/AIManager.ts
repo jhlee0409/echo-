@@ -4,7 +4,6 @@ import {
   AIResponse,
   AIProviderError,
   ProviderConfig,
-  CacheKey,
   AIUsageStats,
   RetryStrategy,
   CircuitBreakerConfig,
@@ -12,7 +11,27 @@ import {
 import { ClaudeProvider } from './providers/ClaudeProvider'
 import { MockProvider } from './providers/MockProvider'
 // import { PromptEngine } from './PromptEngine' // Temporarily disabled
-import { CacheManager } from './CacheManager'
+// Simple in-memory cache to replace CacheManager
+class SimpleCache {
+  private cache = new Map<string, { data: any; expires: number }>()
+  
+  async get(key: string): Promise<any> {
+    const item = this.cache.get(key)
+    if (!item || Date.now() > item.expires) {
+      this.cache.delete(key)
+      return null
+    }
+    return item.data
+  }
+  
+  async set(key: string, data: any, ttl = 300000): Promise<void> {
+    this.cache.set(key, { data, expires: Date.now() + ttl })
+  }
+  
+  getStats() {
+    return { size: this.cache.size, hitRate: 0 }
+  }
+}
 import { CostOptimizer } from './CostOptimizer'
 import { ENV } from '@config/env'
 
@@ -28,7 +47,7 @@ import { ENV } from '@config/env'
 export class AIManager {
   private providers = new Map<string, AIProvider>()
   // private _promptEngine: PromptEngine // Temporarily disabled
-  private cacheManager: CacheManager
+  private cacheManager: SimpleCache
   private costOptimizer: CostOptimizer
   private usageStats: AIUsageStats = {
     totalRequests: 0,
@@ -66,7 +85,7 @@ export class AIManager {
   constructor(config: ProviderConfig) {
     this.initializeProviders(config)
     // this._promptEngine = new PromptEngine() // Temporarily disabled
-    this.cacheManager = new CacheManager()
+    this.cacheManager = new SimpleCache()
     this.costOptimizer = new CostOptimizer()
     this.initializeUsageStats()
     this.setupCircuitBreakers()
@@ -297,7 +316,7 @@ export class AIManager {
   /**
    * Generate cache key for request
    */
-  private generateCacheKey(request: AIRequest): CacheKey {
+  private generateCacheKey(request: AIRequest): string {
     const messagesHash = this.hashString(JSON.stringify(request.messages))
     const contextHash = this.hashString(
       JSON.stringify({

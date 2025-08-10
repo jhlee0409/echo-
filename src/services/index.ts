@@ -11,7 +11,6 @@ export {
 // AI Services
 export {
   AIManager,
-  CacheManager,
   CostOptimizer,
   PromptEngine,
   ClaudeProvider,
