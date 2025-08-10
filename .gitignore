@@ -116,3 +116,17 @@ migration-report.json
 
 # Temporary execution plans
 execution-plan.md
+
+# Test and debug files
+test-*.cjs
+test-*.js
+debug-*.js
+*DEBUG*.md
+*TEST*.md
+*REPORT*.md
+*MIGRATION*.sql
+*MIGRATION*.md
+
+# Optimization files
+*OPTIMIZATION*.md
+*ANALYSIS*.md

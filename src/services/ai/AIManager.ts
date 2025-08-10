@@ -73,11 +73,21 @@ export class AIManager {
   }
 
   private initializeProviders(config: ProviderConfig) {
+    console.log('🔧 Initializing AI Providers...')
+    console.log('API Key available:', !!config.claude.apiKey)
+    console.log('API Key format:', config.claude.apiKey?.substring(0, 10) + '...')
+    
     // Initialize Claude provider (primary)
     if (config.claude.apiKey) {
-      const claudeProvider = new ClaudeProvider(config.claude)
-      this.providers.set('claude', claudeProvider)
-      console.log('✅ Claude provider initialized')
+      try {
+        const claudeProvider = new ClaudeProvider(config.claude)
+        this.providers.set('claude', claudeProvider)
+        console.log('✅ Claude provider initialized successfully')
+      } catch (error) {
+        console.error('❌ Failed to initialize Claude provider:', error)
+      }
+    } else {
+      console.warn('⚠️ No Claude API key provided')
     }
 
     // Always initialize mock provider for development/testing
@@ -89,6 +99,9 @@ export class AIManager {
     if (this.providers.size === 1 && this.providers.has('mock')) {
       console.warn('⚠️ Only mock provider available - check API keys')
     }
+    
+    console.log(`📊 Total providers initialized: ${this.providers.size}`)
+    console.log(`📋 Available providers: ${Array.from(this.providers.keys()).join(', ')}`)
   }
 
   private setupCircuitBreakers() {
@@ -187,6 +200,7 @@ export class AIManager {
       try {
         console.log(`🤖 Attempting request with ${providerName}`)
         const response = await this.executeWithRetry(provider, request)
+        console.log(`✅ ${providerName} responded successfully`)
         circuitBreaker.recordSuccess()
         return response
       } catch (error) {

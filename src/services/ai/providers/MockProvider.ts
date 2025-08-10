@@ -78,6 +78,8 @@ export class MockProvider implements AIProvider {
 
   async generateResponse(request: AIRequest): Promise<AIResponse> {
     const startTime = Date.now()
+    
+    console.log('🎭 Mock Provider is handling this request (fallback active)')
 
     // Mobile-optimized processing delay
     const mobileOptimized =

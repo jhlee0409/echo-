@@ -44,12 +44,16 @@ export interface ConversationContext {
 
 export interface PersonalityContext {
   cheerful: number
-  careful: number
+  caring: number // careful -> caring로 변경
   curious: number
   emotional: number
   independent: number
-  playful?: number
-  supportive?: number
+  playful: number // 필수로 변경
+  supportive: number // 필수로 변경  
+  thoughtful: number // 추가
+  adaptability: number // 추가
+  consistency: number // 추가
+  authenticity: number // 추가
 }
 
 export interface AIRequestOptions {

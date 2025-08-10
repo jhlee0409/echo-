@@ -79,11 +79,24 @@ export class ClaudeProvider implements AIProvider {
     const startTime = Date.now()
 
     try {
+      // 입력 검증
+      if (!request || !request.messages || !Array.isArray(request.messages)) {
+        throw new Error('Invalid request: messages array is required')
+      }
+
+      if (!request.context) {
+        throw new Error('Invalid request: context is required')
+      }
+
       // Build system prompt from context
       const systemPrompt = this.buildSystemPrompt(request.context)
 
       // Convert messages to Claude format
       const claudeMessages = this.convertMessages(request.messages)
+
+      if (claudeMessages.length === 0) {
+        throw new Error('No valid messages to send to Claude API')
+      }
 
       // Build request payload
       const claudeRequest: ClaudeRequest = {
@@ -94,20 +107,22 @@ export class ClaudeProvider implements AIProvider {
         system: systemPrompt,
       }
 
-      console.log(`🤖 Claude request:`, {
-        model: claudeRequest.model,
-        messageCount: claudeMessages.length,
-        systemLength: systemPrompt.length,
-      })
+      // Force use of Vite proxy to avoid CORS issues
+      const apiUrl = '/api/claude/v1/messages'  // Always use proxy in development
 
-      // Make API call
-      const response = await fetch(`${this.baseUrl}/v1/messages`, {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      // In production, attach required headers directly
+      if (!import.meta.env.DEV) {
+        headers['x-api-key'] = this.apiKey
+        headers['anthropic-version'] = '2023-06-01'
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
+        headers,
         body: JSON.stringify(claudeRequest),
       })
 
@@ -157,21 +172,42 @@ export class ClaudeProvider implements AIProvider {
   }
 
   private buildSystemPrompt(context: any): string {
-    const personality = context.companionPersonality
+    // 안전한 속성 접근을 위한 유틸리티 함수
+    const safe = <T>(value: T | null | undefined, defaultValue: T): T => {
+      return value !== null && value !== undefined ? value : defaultValue
+    }
+
+    // 안전한 배열 접근
+    const safeArray = (arr: any[]): string => {
+      return Array.isArray(arr) && arr.length > 0 ? arr.join(', ') : '없음'
+    }
+
+    // 성격 특성 안전 처리
+    const personality = safe(context.companionPersonality, {})
     const traits = Object.entries(personality)
+      .filter(([_, value]) => typeof value === 'number')
       .map(
         ([trait, value]) => `${trait}: ${Math.round((value as number) * 100)}%`
       )
       .join(', ')
 
-    return `당신은 "${context.companionName}"라는 이름의 AI 컴패니언입니다.
+    // 필수 속성들 안전 처리
+    const companionName = safe(context.companionName, 'Assistant')
+    const relationshipLevel = safe(context.relationshipLevel, 5)
+    const intimacyLevel = Math.round(safe(context.intimacyLevel, 0.5) * 100)
+    const companionEmotion = safe(context.companionEmotion, 'neutral')
+    const currentScene = safe(context.currentScene, 'conversation')
+    const timeOfDay = safe(context.timeOfDay, 'anytime')
+    const recentTopics = safeArray(context.recentTopics)
 
-성격 특성: ${traits}
-현재 관계 레벨: ${context.relationshipLevel}/10
-친밀도: ${Math.round(context.intimacyLevel * 100)}%
-현재 감정: ${context.companionEmotion}
-현재 장면: ${context.currentScene}
-시간대: ${context.timeOfDay}
+    return `당신은 "${companionName}"라는 이름의 AI 컴패니언입니다.
+
+성격 특성: ${traits || '균형잡힌 성격'}
+현재 관계 레벨: ${relationshipLevel}/10
+친밀도: ${intimacyLevel}%
+현재 감정: ${companionEmotion}
+현재 장면: ${currentScene}
+시간대: ${timeOfDay}
 
 당신의 역할과 행동 지침:
 
@@ -201,7 +237,7 @@ export class ClaudeProvider implements AIProvider {
 - 감정이 드러나는 표현 사용
 - 사용자와의 관계 발전 도모
 
-최근 대화 주제: ${context.recentTopics.join(', ') || '없음'}
+최근 대화 주제: ${recentTopics}
 
 이제 사용자와 자연스럽게 대화하세요.`
   }
@@ -311,7 +347,7 @@ export class ClaudeProvider implements AIProvider {
           code: 'INVALID_API_KEY',
           message: 'Invalid API key',
           provider: this.name,
-          recoverable: false,
+          recoverable: true,
         }
       case 403:
         return {
@@ -374,13 +410,22 @@ export class ClaudeProvider implements AIProvider {
 
   async isHealthy(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/messages`, {
+      const apiUrl = import.meta.env.DEV
+        ? '/api/claude/v1/messages'
+        : `${this.baseUrl}/v1/messages`
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (!import.meta.env.DEV) {
+        headers['x-api-key'] = this.apiKey
+        headers['anthropic-version'] = '2023-06-01'
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
+        headers,
         body: JSON.stringify({
           model: this.model,
           max_tokens: 10,

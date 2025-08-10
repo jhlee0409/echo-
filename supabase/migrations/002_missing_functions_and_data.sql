@@ -258,13 +258,20 @@ VALUES (
 SELECT create_user_defaults('00000000-0000-0000-0000-000000000003'::UUID);
 
 -- 13. RLS 정책 재확인 및 보완
--- 공개 프로필 조회 정책 추가
-CREATE POLICY IF NOT EXISTS "Public profiles are viewable" ON user_profiles
-    FOR SELECT USING (is_public = true);
-
--- 관리자용 RLS 우회 정책 (필요시)
--- CREATE POLICY "Service role bypass" ON user_profiles
---     FOR ALL USING (current_setting('request.jwt.claims', true)::json->>'role' = 'service_role');
+-- 공개 프로필 조회 정책 추가 (기존 정책이 있으면 삭제 후 재생성)
+DO $$
+BEGIN
+    -- 기존 정책이 있으면 삭제
+    DROP POLICY IF EXISTS "Public profiles are viewable" ON user_profiles;
+    
+    -- 새 정책 생성
+    CREATE POLICY "Public profiles are viewable" ON user_profiles
+        FOR SELECT USING (is_public = true);
+EXCEPTION
+    WHEN OTHERS THEN
+        -- 정책이 이미 존재하는 경우 무시
+        NULL;
+END $$;
 
 -- 14. 데이터베이스 통계 업데이트
 ANALYZE user_profiles;
