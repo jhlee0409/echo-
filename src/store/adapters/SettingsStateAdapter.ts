@@ -278,12 +278,7 @@ export class SettingsStateAdapter implements SettingsStateAPI {
       debugMode: !current
     })
     
-    // Apply debug mode changes
-    if (!current) {
-      console.log('🐛 Debug mode enabled')
-    } else {
-      console.log('Debug mode disabled')
-    }
+    // Apply debug mode changes silently
   }
 
   // Private helper methods

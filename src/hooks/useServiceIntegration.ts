@@ -284,9 +284,12 @@ export function useServiceIntegrationStatus() {
       
       if (ready) {
         try {
-          const { getServiceIntegrationStatus } = require('@services/integration')
-          const currentStatus = getServiceIntegrationStatus()
-          setStatus(currentStatus)
+          import('../services/integration/index').then(module => {
+            const currentStatus = module.getServiceIntegrationStatus()
+            setStatus(currentStatus)
+          }).catch(error => {
+            console.error('Failed to get service integration status:', error)
+          })
         } catch (error) {
           console.error('Failed to get service integration status:', error)
         }

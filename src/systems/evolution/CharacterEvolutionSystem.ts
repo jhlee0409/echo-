@@ -12,7 +12,7 @@
  */
 
 import { EventEmitter } from 'events'
-import type { AdvancedAICompanion } from '@/systems/advanced/AdvancedAICompanion'
+import type { AdvancedAICompanion } from '@services/character/AdvancedCharacterSystem'
 import { ExperienceCalculator } from './ExperienceCalculator'
 import { SkillManager } from './SkillManager'
 import { AchievementTracker } from './AchievementTracker'

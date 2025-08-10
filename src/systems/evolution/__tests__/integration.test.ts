@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { CharacterEvolutionSystem } from '../CharacterEvolutionSystem'
-import { AdvancedAICompanion } from '@/systems/advanced/AdvancedAICompanion'
+import type { AdvancedAICompanion } from '@services/character/AdvancedCharacterSystem'
 
 // Mock AdvancedAICompanion
 const createMockCompanion = (): Partial<AdvancedAICompanion> => ({

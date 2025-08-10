@@ -27,13 +27,13 @@ import { FeatureGate } from '@services/feature-flags'
 import { LoadingScreen, ErrorBoundary } from '@components'
 
 // Lazy-loaded route components for code splitting
-const GameApp = React.lazy(() => import('@/components/screens/GameApp'))
-const AuthScreen = React.lazy(() => import('@/components/auth/AuthScreen'))
-const LandingPage = React.lazy(() => import('@/components/pages/LandingPage'))
-const ProfilePage = React.lazy(() => import('@/components/pages/ProfilePage'))
-const SettingsPage = React.lazy(() => import('@/components/pages/SettingsPage'))
-const AdminPanel = React.lazy(() => import('@/components/admin/AdminPanel'))
-const NotFoundPage = React.lazy(() => import('@/components/pages/NotFoundPage'))
+const GameApp = React.lazy(() => import('../components/screens/GameApp'))
+const AuthScreen = React.lazy(() => import('../components/auth/AuthScreen'))
+const LandingPage = React.lazy(() => import('../components/pages/LandingPage'))
+const ProfilePage = React.lazy(() => import('../components/pages/ProfilePage'))
+const SettingsPage = React.lazy(() => import('../components/pages/SettingsPage'))
+const AdminPanel = React.lazy(() => import('../components/admin/AdminPanel'))
+const NotFoundPage = React.lazy(() => import('../components/pages/NotFoundPage'))
 
 // Authentication hooks
 import { useAuthStore } from '@hooks/useAuthStore'
@@ -98,7 +98,11 @@ const AppRouter: React.FC = () => {
   const enableAuth = useFeatureFlag('analytics') // Using analytics as auth proxy
 
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}>
       <ErrorBoundary>
         <RouteTransition>
           <Suspense fallback={<LoadingScreen />}>
