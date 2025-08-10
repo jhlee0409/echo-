@@ -36,7 +36,7 @@ export function BattleScreen({
 }: BattleScreenProps) {
   const [battleState, setBattleState] = useState<'preparing' | 'active' | 'ended'>('preparing')
   const [battleSystem, setBattleSystem] = useState<AutoBattleSystem | null>(null)
-  const [currentFormation, setCurrentFormation] = useState<BattleFormation>(initialFormation)
+  const [currentFormation] = useState<BattleFormation>(initialFormation)
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null)
   const [battleLog, setBattleLog] = useState<BattleLogEntry[]>([])
   const [currentTurn, setCurrentTurn] = useState<number>(0)

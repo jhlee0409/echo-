@@ -96,7 +96,7 @@ describe('Battle Balancing Tests', () => {
         character.relationship.totalInteractions = level * 10 // Simulate level progression
 
         let victories = 0
-        let totalBattles = 5
+        const totalBattles = 5
 
         for (let battle = 0; battle < totalBattles; battle++) {
           const formation: BattleFormation = {

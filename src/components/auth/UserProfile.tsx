@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { authService } from '@/services/auth/AuthService'
 import { userProfileService } from '@/services/database/SupabaseService'
-import type { AuthState, UserProfile } from '@/services/auth/AuthService'
+import type { AuthState } from '@/services/auth/AuthService'
 
 interface UserProfileProps {
   isOpen: boolean

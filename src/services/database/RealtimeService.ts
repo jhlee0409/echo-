@@ -88,7 +88,7 @@ export class RealtimeService {
           : ['INSERT', 'UPDATE', 'DELETE']
 
       events.forEach(event => {
-        let config: any = {
+        const config: any = {
           event: event as any,
           schema: options.schema || 'public',
           table

@@ -86,7 +86,7 @@ const getCrypto = () => {
             }
         // Add isBuffer method for compatibility
         if (typeof Buffer !== 'undefined' && !Buffer.isBuffer(buffer)) {
-          ;(buffer as any).__isBuffer = true
+          (buffer as any).__isBuffer = true
         }
         return buffer
       },
@@ -273,7 +273,7 @@ const getCrypto = () => {
               }
           // Add isBuffer method for compatibility
           if (typeof Buffer !== 'undefined' && !Buffer.isBuffer(buffer)) {
-            ;(buffer as any).__isBuffer = true
+            (buffer as any).__isBuffer = true
           }
           return buffer
         },
@@ -361,7 +361,7 @@ const getCrypto = () => {
           }
       // Add isBuffer method for compatibility
       if (typeof Buffer !== 'undefined' && !Buffer.isBuffer(buffer)) {
-        ;(buffer as any).__isBuffer = true
+        (buffer as any).__isBuffer = true
       }
       return buffer
     },

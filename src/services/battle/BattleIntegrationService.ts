@@ -446,7 +446,7 @@ export class BattleIntegrationService {
         const newValue = Math.max(0, Math.min(1, currentValue + adjustedChange))
         
         if (newValue !== currentValue) {
-          ;(personality as any)[trait] = newValue
+          (personality as any)[trait] = newValue
           hasChanges = true
         }
       }
@@ -536,7 +536,7 @@ export class BattleIntegrationService {
    * Update performance metrics
    */
   private updatePerformanceMetrics(characterId: string, result: BattleResult): void {
-    let metrics = this.performanceHistory.get(characterId) || this.createDefaultPerformance()
+    const metrics = this.performanceHistory.get(characterId) || this.createDefaultPerformance()
 
     if (result.victory) {
       metrics.battlesWon++

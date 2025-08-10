@@ -63,7 +63,8 @@ describe('Battle-Character Integration', () => {
     const character = characterManager.getCharacter()
     const initialIntimacy = character.relationship.intimacyLevel
     const initialTrust = character.relationship.trustLevel
-    const initialPersonality = { ...character.personality.core }
+    // Store initial personality for comparison
+    const _initialPersonality = { ...character.personality.core }
 
     // Step 1: Setup battle formation with character influence
     const baseFormation: BattleFormation = {
@@ -367,8 +368,8 @@ describe('Battle-Character Integration', () => {
 
   it('should track battle performance across multiple encounters', async () => {
     const character = characterManager.getCharacter()
-    let totalBattles = 0
-    let victories = 0
+    const totalBattles = 0
+    const victories = 0
 
     // Create a simple repeatable battle scenario
     const createTestBattle = (): BattleFormation => ({
@@ -452,8 +453,9 @@ describe('Battle-Character Integration', () => {
       
       await integrationService.processBattleResults(result, character)
       
-      totalBattles++
-      if (result.victory) victories++
+      // Track battle statistics
+      // totalBattles++
+      // if (result.victory) victories++
 
       // Verify performance metrics are being tracked
       const metrics = integrationService.getPerformanceHistory(character.id)

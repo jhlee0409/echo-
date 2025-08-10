@@ -4,7 +4,7 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Settings, Flag, Users, BarChart3 } from 'lucide-react'
+import { Flag, Users, BarChart3 } from 'lucide-react'
 
 const AdminPanel: React.FC = () => {
   return (

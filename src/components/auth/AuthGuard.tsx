@@ -44,11 +44,11 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
         
         // Set initial auth state
         const initialState = authService.getAuthState()
-        setAuthState(prev => ({ ...initialState, isLoading: false }))
+        setAuthState(_prev => ({ ...initialState, isLoading: false }))
 
         // Listen to auth changes
         unsubscribe = authService.addAuthListener((state) => {
-          setAuthState(prev => ({ ...state, isLoading: false }))
+          setAuthState(_prev => ({ ...state, isLoading: false }))
         })
       } catch (error) {
         console.error('Auth initialization failed:', error)

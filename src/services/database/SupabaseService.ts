@@ -216,7 +216,7 @@ export class UserProfileService extends SupabaseService {
   ): Promise<DatabaseResult<UserProfileRow[]>> {
     return this.executeQuery(
       () => {
-        let dbQuery = supabase
+        const dbQuery = supabase
           .from('user_profiles')
           .select('*')
           .eq('is_public', true)
@@ -242,7 +242,7 @@ export class CompanionService extends SupabaseService {
   ): Promise<DatabaseResult<CompanionRow[]>> {
     return this.executeQuery(
       () => {
-        let query = supabase
+        const query = supabase
           .from('companions')
           .select('*')
           .eq('user_id', userId)
@@ -555,7 +555,7 @@ export class MessageService extends SupabaseService {
   ): Promise<DatabaseResult<MessageRow[]>> {
     return this.executeQuery(
       () => {
-        let query = supabase
+        const query = supabase
           .from('messages')
           .select('*')
           .eq('conversation_session_id', sessionId)
@@ -579,7 +579,7 @@ export class MessageService extends SupabaseService {
   ): Promise<DatabaseResult<MessageRow[]>> {
     return this.executeQuery(
       () => {
-        let query = supabase
+        const query = supabase
           .from('messages')
           .select('*')
           .eq('user_id', userId)
