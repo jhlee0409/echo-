@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist, devtools } from 'zustand/middleware'
 import { AICompanion, GameState, Settings, Message, EmotionType } from '@types'
+import { getAIManager } from '@services/ai'
+import { ENV } from '@config/env'
 
 interface GameStoreState {
   // Game state
@@ -147,6 +149,18 @@ export const useStore = create<GameStoreState>()(
               set({ settings: createInitialSettings() })
             }
             
+            // Initialize AI Manager
+            console.log('🤖 Initializing AI Manager...')
+            const aiManager = getAIManager()
+            
+            // Check AI service health
+            const isHealthy = await aiManager.isHealthy()
+            console.log('🔍 AI Service Health Check:', {
+              healthy: isHealthy,
+              hasClaudeKey: !!ENV.CLAUDE_API_KEY,
+              keyPrefix: ENV.CLAUDE_API_KEY?.substring(0, 12) + '...'
+            })
+            
             // Simulate initialization delay
             await new Promise(resolve => setTimeout(resolve, 1000))
             
@@ -157,6 +171,7 @@ export const useStore = create<GameStoreState>()(
             })
             
             console.log('✅ Game initialized successfully')
+            console.log('🎯 Claude API available:', !!ENV.CLAUDE_API_KEY)
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error'
             set({ 
@@ -243,11 +258,47 @@ export const useStore = create<GameStoreState>()(
           }))
           
           try {
-            // Simulate AI response delay
-            await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
+            // Get AI Manager instance
+            const aiManager = getAIManager()
             
-            // Create mock AI response
-            const aiResponse = generateMockAIResponse(message, state.companion)
+            // Prepare context for AI request
+            const conversationContext = {
+              companionName: state.companion.name,
+              companionPersonality: state.companion.personalityTraits,
+              relationshipLevel: state.companion.relationshipStatus.level,
+              intimacyLevel: state.companion.relationshipStatus.intimacyLevel,
+              companionEmotion: state.companion.currentEmotion.dominant,
+              currentScene: state.gameState?.currentScene || 'main_room',
+              recentTopics: state.companion.conversationContext.recentTopics,
+              timeOfDay: 'anytime'
+            }
+            
+            // Create AI request
+            const aiRequest = {
+              messages: [
+                {
+                  role: 'user' as const,
+                  content: message
+                }
+              ],
+              context: conversationContext,
+              options: {
+                maxTokens: 150,
+                temperature: 0.7
+              }
+            }
+            
+            console.log('🤖 Sending request to AI service...')
+            
+            // Call AI service (will use Claude API if available, otherwise fallback to Mock)
+            const aiResponse = await aiManager.generateResponse(aiRequest)
+            
+            console.log(`✅ AI Response received from ${aiResponse.provider}:`, {
+              provider: aiResponse.provider,
+              tokensUsed: aiResponse.tokensUsed,
+              cached: aiResponse.cached,
+              confidence: aiResponse.confidence
+            })
             
             const aiMessage: Message = {
               id: `msg_${Date.now()}_ai`,
@@ -262,24 +313,71 @@ export const useStore = create<GameStoreState>()(
               isLoading: false
             }))
             
-            // Update companion emotion and relationship
-            const emotionUpdates = calculateEmotionUpdates(message)
-            if (emotionUpdates) {
-              get().updateCompanion(emotionUpdates)
+            // Update companion emotion based on AI response
+            if (aiResponse.emotion && aiResponse.emotion !== 'neutral') {
+              get().updateCompanion({
+                currentEmotion: {
+                  dominant: aiResponse.emotion,
+                  intensity: aiResponse.confidence,
+                  stability: 0.8
+                }
+              })
             }
             
-            // Update game state
+            // Update conversation context
+            const updatedTopics = [
+              ...state.companion.conversationContext.recentTopics.slice(-4),
+              message.substring(0, 50)
+            ]
+            
+            get().updateCompanion({
+              conversationContext: {
+                ...state.companion.conversationContext,
+                recentTopics: updatedTopics,
+                moodHistory: [
+                  ...state.companion.conversationContext.moodHistory.slice(-9),
+                  aiResponse.emotion
+                ]
+              }
+            })
+            
+            // Update game state - give more experience for real AI conversations
+            const expGain = aiResponse.provider === 'claude' ? 15 : 10
             get().updateGameState({
               conversationCount: (state.gameState?.conversationCount || 0) + 1,
-              experience: (state.gameState?.experience || 0) + 10
+              experience: (state.gameState?.experience || 0) + expGain
             })
             
           } catch (error) {
-            set({ 
-              isLoading: false, 
-              error: 'AI 응답 중 오류가 발생했습니다.' 
+            console.error('❌ AI service error:', error)
+            
+            // Fallback to mock response on error
+            const fallbackResponse = generateMockAIResponse(message, state.companion)
+            
+            const aiMessage: Message = {
+              id: `msg_${Date.now()}_ai`,
+              sender: 'ai', 
+              content: fallbackResponse.content,
+              timestamp: Date.now(),
+              emotion: fallbackResponse.emotion
+            }
+            
+            set(state => ({
+              conversationHistory: [...state.conversationHistory, aiMessage],
+              isLoading: false,
+              error: 'AI 서비스 일시 장애 - Mock 응답으로 대체됨'
+            }))
+            
+            // Clear error after 3 seconds
+            setTimeout(() => {
+              set(state => ({ ...state, error: null }))
+            }, 3000)
+            
+            // Update game state with minimal experience
+            get().updateGameState({
+              conversationCount: (state.gameState?.conversationCount || 0) + 1,
+              experience: (state.gameState?.experience || 0) + 5
             })
-            console.error('Chat error:', error)
           }
         },
 
@@ -338,20 +436,3 @@ function generateMockAIResponse(userMessage: string, companion: AICompanion): { 
   return responses[Math.floor(Math.random() * responses.length)]
 }
 
-function calculateEmotionUpdates(userMessage: string): Partial<AICompanion> | null {
-  // Simple emotion calculation based on message content
-  const positiveWords = ['좋아', '사랑', '고마워', '행복', '기뻐']
-  const isPositive = positiveWords.some(word => userMessage.includes(word))
-  
-  if (isPositive) {
-    return {
-      currentEmotion: {
-        dominant: 'happy',
-        intensity: 0.8,
-        stability: 0.9
-      }
-    }
-  }
-  
-  return null
-}
