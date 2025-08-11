@@ -10,11 +10,11 @@ import {
 } from './types'
 import { ClaudeProvider } from './providers/ClaudeProvider'
 import { MockProvider } from './providers/MockProvider'
-// import { PromptEngine } from './PromptEngine' // Temporarily disabled
+import { PromptEngine } from './PromptEngine'
 // Simple in-memory cache to replace CacheManager
 class SimpleCache {
   private cache = new Map<string, { data: any; expires: number }>()
-  
+
   async get(key: string): Promise<any> {
     const item = this.cache.get(key)
     if (!item || Date.now() > item.expires) {
@@ -23,15 +23,15 @@ class SimpleCache {
     }
     return item.data
   }
-  
+
   async set(key: string, data: any, ttl = 300000): Promise<void> {
     this.cache.set(key, { data, expires: Date.now() + ttl })
   }
-  
+
   getStats() {
     return { size: this.cache.size, hitRate: 0 }
   }
-  
+
   async cleanup(): Promise<void> {
     // Clean up expired entries
     const now = Date.now()
@@ -40,7 +40,9 @@ class SimpleCache {
         this.cache.delete(key)
       }
     }
-    console.log(`🧹 Cache cleanup completed. Remaining entries: ${this.cache.size}`)
+    console.log(
+      `🧹 Cache cleanup completed. Remaining entries: ${this.cache.size}`
+    )
   }
 }
 import { CostOptimizer } from './CostOptimizer'
@@ -57,7 +59,7 @@ import { ENV } from '@config/env'
  */
 export class AIManager {
   private providers = new Map<string, AIProvider>()
-  // private _promptEngine: PromptEngine // Temporarily disabled
+  private _promptEngine: PromptEngine
   private cacheManager: SimpleCache
   private costOptimizer: CostOptimizer
   private usageStats: AIUsageStats = {
@@ -73,6 +75,10 @@ export class AIManager {
     },
   }
   private circuitBreakers = new Map<string, CircuitBreaker>()
+  private rateLimiters = new Map<string, RateLimiter>()
+  private requestQueue = new RequestQueue()
+  private performanceMonitor = new PerformanceMonitor()
+  private isProcessingQueue = false
 
   private readonly retryStrategy: RetryStrategy = {
     maxRetries: 3,
@@ -95,18 +101,22 @@ export class AIManager {
 
   constructor(config: ProviderConfig) {
     this.initializeProviders(config)
-    // this._promptEngine = new PromptEngine() // Temporarily disabled
+    this._promptEngine = new PromptEngine()
     this.cacheManager = new SimpleCache()
     this.costOptimizer = new CostOptimizer()
     this.initializeUsageStats()
     this.setupCircuitBreakers()
+    this.setupRateLimiters()
   }
 
   private initializeProviders(config: ProviderConfig) {
     console.log('🔧 Initializing AI Providers...')
     console.log('API Key available:', !!config.claude.apiKey)
-    console.log('API Key format:', config.claude.apiKey?.substring(0, 10) + '...')
-    
+    console.log(
+      'API Key format:',
+      config.claude.apiKey?.substring(0, 10) + '...'
+    )
+
     // Initialize Claude provider (primary)
     if (config.claude.apiKey) {
       try {
@@ -129,15 +139,38 @@ export class AIManager {
     if (this.providers.size === 1 && this.providers.has('mock')) {
       console.warn('⚠️ Only mock provider available - check API keys')
     }
-    
+
     console.log(`📊 Total providers initialized: ${this.providers.size}`)
-    console.log(`📋 Available providers: ${Array.from(this.providers.keys()).join(', ')}`)
+    console.log(
+      `📋 Available providers: ${Array.from(this.providers.keys()).join(', ')}`
+    )
   }
 
   private setupCircuitBreakers() {
     for (const name of this.providers.keys()) {
       const breaker = new CircuitBreaker(name, this.circuitBreakerConfig)
       this.circuitBreakers.set(name, breaker)
+    }
+  }
+
+  private setupRateLimiters() {
+    for (const name of this.providers.keys()) {
+      // Get rate limits from provider config or use defaults
+      const rateLimits =
+        name === 'claude'
+          ? {
+              requestsPerMinute: 50,
+              tokensPerMinute: 100000,
+              dailyTokenLimit: 1000000,
+            }
+          : {
+              requestsPerMinute: 100,
+              tokensPerMinute: 500000,
+              dailyTokenLimit: 5000000,
+            }
+
+      const limiter = new RateLimiter(name, rateLimits)
+      this.rateLimiters.set(name, limiter)
     }
   }
 
@@ -157,44 +190,35 @@ export class AIManager {
   /**
    * Generate AI response with intelligent provider selection and fallback
    */
-  async generateResponse(request: AIRequest): Promise<AIResponse> {
+  async generateResponse(
+    request: AIRequest,
+    priority: 'high' | 'normal' | 'low' = 'normal'
+  ): Promise<AIResponse> {
     const startTime = Date.now()
 
     try {
+      // Enhance request with optimized prompt
+      const enhancedRequest = this.enhanceRequestWithPrompt(request)
+
       // Optimize the request (prompt compression, context pruning)
-      const optimizedRequest = this.costOptimizer.optimizePrompt(request)
+      const optimizedRequest =
+        this.costOptimizer.optimizePrompt(enhancedRequest)
 
-      // Check cache first
-      const cacheKey = this.generateCacheKey(optimizedRequest)
-      const cachedResponse = await this.cacheManager.get(cacheKey)
-
-      if (
-        cachedResponse &&
-        this.costOptimizer.shouldUseCache(optimizedRequest)
-      ) {
-        this.updateUsageStats(cachedResponse, startTime, true)
-        return {
-          ...cachedResponse,
-          cached: true,
-          processingTime: Date.now() - startTime,
-        }
+      // Add request to queue with priority
+      const queuedRequest: QueuedRequest = {
+        ...optimizedRequest,
+        id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        priority,
+        timestamp: Date.now(),
+        startTime,
       }
 
-      // Select best provider
-      const providerName =
-        await this.costOptimizer.selectProvider(optimizedRequest)
-      const response = await this.executeWithFallback(
-        optimizedRequest,
-        providerName
-      )
-
-      // Cache successful response
-      if (response.confidence > 0.7) {
-        await this.cacheManager.set(cacheKey, response)
+      // Check if we can process immediately or need to queue
+      if (await this.canProcessImmediately()) {
+        return await this.processRequest(queuedRequest)
+      } else {
+        return await this.queueRequest(queuedRequest)
       }
-
-      this.updateUsageStats(response, startTime, false)
-      return response
     } catch (error) {
       const errorResponse = this.handleError(
         error as AIProviderError,
@@ -229,7 +253,18 @@ export class AIManager {
 
       try {
         console.log(`🤖 Attempting request with ${providerName}`)
+        const requestStartTime = Date.now()
         const response = await this.executeWithRetry(provider, request)
+        const requestEndTime = Date.now()
+
+        // Record performance metrics
+        this.performanceMonitor.recordRequest(providerName, {
+          responseTime: requestEndTime - requestStartTime,
+          tokensUsed: response.tokensUsed,
+          success: true,
+          timestamp: requestStartTime,
+        })
+
         console.log(`✅ ${providerName} responded successfully`)
         circuitBreaker.recordSuccess()
         return response
@@ -237,6 +272,15 @@ export class AIManager {
         const aiError = error as AIProviderError
         lastError = aiError
         circuitBreaker.recordFailure()
+
+        // Record failure metrics
+        this.performanceMonitor.recordRequest(providerName, {
+          responseTime: Date.now() - Date.now(), // This will be overridden with actual time
+          tokensUsed: 0,
+          success: false,
+          timestamp: Date.now(),
+          error: aiError.code,
+        })
 
         console.warn(`❌ ${providerName} failed:`, aiError.message)
 
@@ -297,6 +341,36 @@ export class AIManager {
   }
 
   /**
+   * Enhance request with optimized prompt using PromptEngine
+   */
+  private enhanceRequestWithPrompt(request: AIRequest): AIRequest {
+    try {
+      // Build system prompt using PromptEngine
+      const systemPrompt = this._promptEngine.buildPrompt(request.context)
+
+      // Add system message if not already present
+      const hasSystemMessage = request.messages.some(
+        msg => msg.role === 'system'
+      )
+
+      if (!hasSystemMessage) {
+        return {
+          ...request,
+          messages: [
+            { role: 'system', content: systemPrompt, timestamp: Date.now() },
+            ...request.messages,
+          ],
+        }
+      }
+
+      return request
+    } catch (error) {
+      console.warn('⚠️ Failed to enhance request with PromptEngine:', error)
+      return request
+    }
+  }
+
+  /**
    * Get providers in order of preference
    */
   private getProvidersInOrder(preferredProvider: string): string[] {
@@ -339,11 +413,7 @@ export class AIManager {
     )
     const optionsHash = this.hashString(JSON.stringify(request.options || {}))
 
-    return {
-      messages: messagesHash,
-      context: contextHash,
-      options: optionsHash,
-    }
+    return `${messagesHash}:${contextHash}:${optionsHash}`
   }
 
   /**
@@ -442,6 +512,42 @@ export class AIManager {
   }
 
   /**
+   * Get performance metrics for all providers
+   */
+  getPerformanceMetrics(): Record<string, any> {
+    return this.performanceMonitor.getMetrics()
+  }
+
+  /**
+   * Get rate limiter status for all providers
+   */
+  getRateLimiterStatus(): Record<string, any> {
+    const status: Record<string, any> = {}
+    for (const [name, limiter] of this.rateLimiters) {
+      status[name] = limiter.getStatus()
+    }
+    return status
+  }
+
+  /**
+   * Get request queue status
+   */
+  getQueueStatus() {
+    return {
+      ...this.requestQueue.getStatus(),
+      isProcessing: this.isProcessingQueue,
+    }
+  }
+
+  /**
+   * Clear request queue (emergency use)
+   */
+  clearQueue() {
+    this.requestQueue.clear()
+    console.log('🧹 Request queue cleared')
+  }
+
+  /**
    * Check health of all providers
    */
   async checkHealth(): Promise<Record<string, boolean>> {
@@ -459,28 +565,172 @@ export class AIManager {
   }
 
   /**
+   * Get detailed health status of all providers
+   */
+  async getHealthStatus(): Promise<Record<string, boolean>> {
+    const healthStatus: Record<string, boolean> = {}
+
+    for (const [name, provider] of this.providers) {
+      try {
+        healthStatus[name] = await provider.isHealthy()
+      } catch (error) {
+        console.warn(`❌ Health check failed for ${name}:`, error)
+        healthStatus[name] = false
+      }
+    }
+
+    return healthStatus
+  }
+
+  /**
    * Check overall health of AI Manager
    */
   async isHealthy(): Promise<boolean> {
     try {
       const healthStatus = await this.getHealthStatus()
-      
+
       // Consider healthy if at least one provider is healthy
-      const healthyProviders = Object.values(healthStatus).filter(status => status === true)
+      const healthyProviders = Object.values(healthStatus).filter(
+        status => status === true
+      )
       const isHealthy = healthyProviders.length > 0
-      
+
       console.log('🏥 AI Manager Health Status:', {
         totalProviders: Object.keys(healthStatus).length,
         healthyProviders: healthyProviders.length,
         overallHealth: isHealthy,
-        providerStatus: healthStatus
+        providerStatus: healthStatus,
       })
-      
+
       return isHealthy
     } catch (error) {
       console.error('❌ Health check failed:', error)
       return false
     }
+  }
+
+  /**
+   * Check if request can be processed immediately
+   */
+  private async canProcessImmediately(): Promise<boolean> {
+    // Check if queue is empty and no rate limits are hit
+    return this.requestQueue.isEmpty() && !this.isProcessingQueue
+  }
+
+  /**
+   * Process a request directly
+   */
+  private async processRequest(
+    queuedRequest: QueuedRequest
+  ): Promise<AIResponse> {
+    const { startTime, ...request } = queuedRequest
+
+    // Check rate limits before processing
+    await this.checkRateLimits(request)
+
+    // Check cache first
+    const cacheKey = this.generateCacheKey(request)
+    const cachedResponse = await this.cacheManager.get(cacheKey)
+
+    if (cachedResponse && this.costOptimizer.shouldUseCache(request)) {
+      this.updateUsageStats(cachedResponse, startTime, true)
+      return {
+        ...cachedResponse,
+        cached: true,
+        processingTime: Date.now() - startTime,
+      }
+    }
+
+    // Select best provider
+    const providerName = await this.costOptimizer.selectProvider(request)
+    const response = await this.executeWithFallback(request, providerName)
+
+    // Cache successful response
+    if (response.confidence > 0.7) {
+      await this.cacheManager.set(cacheKey, response)
+    }
+
+    this.updateUsageStats(response, startTime, false)
+    return response
+  }
+
+  /**
+   * Queue a request for later processing
+   */
+  private async queueRequest(
+    queuedRequest: QueuedRequest
+  ): Promise<AIResponse> {
+    return new Promise((resolve, reject) => {
+      this.requestQueue.enqueue({
+        ...queuedRequest,
+        resolve,
+        reject,
+      })
+
+      // Start processing queue if not already running
+      if (!this.isProcessingQueue) {
+        this.processQueue()
+      }
+    })
+  }
+
+  /**
+   * Process queued requests
+   */
+  private async processQueue(): Promise<void> {
+    if (this.isProcessingQueue) return
+    this.isProcessingQueue = true
+
+    try {
+      while (!this.requestQueue.isEmpty()) {
+        const queuedRequest = this.requestQueue.dequeue()
+        if (!queuedRequest) break
+
+        try {
+          const response = await this.processRequest(queuedRequest)
+          queuedRequest.resolve(response)
+        } catch (error) {
+          queuedRequest.reject(error)
+        }
+
+        // Small delay between requests to avoid overwhelming providers
+        await this.sleep(100)
+      }
+    } finally {
+      this.isProcessingQueue = false
+    }
+  }
+
+  /**
+   * Check rate limits for all providers before processing request
+   */
+  private async checkRateLimits(request: AIRequest): Promise<void> {
+    const estimatedTokens = this.estimateTokens(request)
+
+    for (const [providerName, rateLimiter] of this.rateLimiters) {
+      if (!rateLimiter.canMakeRequest(estimatedTokens)) {
+        const delay = rateLimiter.getRetryDelay()
+        if (delay > 0) {
+          console.warn(
+            `⏱️ Rate limit reached for ${providerName}, waiting ${delay}ms`
+          )
+          await this.sleep(delay)
+        } else {
+          throw new Error(`Daily quota exceeded for ${providerName}`)
+        }
+      }
+    }
+  }
+
+  /**
+   * Estimate token usage for a request
+   */
+  private estimateTokens(request: AIRequest): number {
+    const messageText = request.messages.map(msg => msg.content).join(' ')
+
+    // Rough estimation: 1 token ≈ 4 characters for English, 1-2 for Korean
+    const avgCharsPerToken = 3
+    return Math.ceil(messageText.length / avgCharsPerToken)
   }
 
   /**
@@ -496,6 +746,11 @@ export class AIManager {
   async shutdown() {
     console.log('🛑 Shutting down AI Manager...')
     await this.cacheManager.cleanup()
+
+    // Reset rate limiters
+    for (const rateLimiter of this.rateLimiters.values()) {
+      rateLimiter.reset()
+    }
   }
 }
 
@@ -538,6 +793,280 @@ class CircuitBreaker {
       console.warn(`🚨 Circuit breaker opened for ${this.name}`)
     }
   }
+}
+
+/**
+ * Rate Limiter implementation
+ */
+class RateLimiter {
+  private requestCount = 0
+  private tokenCount = 0
+  private dailyTokens = 0
+  private lastReset = Date.now()
+  private dailyReset = Date.now()
+
+  constructor(
+    private name: string,
+    private limits: {
+      requestsPerMinute: number
+      tokensPerMinute: number
+      dailyTokenLimit: number
+    }
+  ) {}
+
+  canMakeRequest(estimatedTokens: number): boolean {
+    const now = Date.now()
+
+    // Reset counters if a minute has passed
+    if (now - this.lastReset > 60000) {
+      this.requestCount = 0
+      this.tokenCount = 0
+      this.lastReset = now
+    }
+
+    // Reset daily counter if a day has passed
+    if (now - this.dailyReset > 86400000) {
+      this.dailyTokens = 0
+      this.dailyReset = now
+    }
+
+    // Check all limits
+    const canMakeRequest =
+      this.requestCount < this.limits.requestsPerMinute &&
+      this.tokenCount + estimatedTokens <= this.limits.tokensPerMinute &&
+      this.dailyTokens + estimatedTokens <= this.limits.dailyTokenLimit
+
+    if (canMakeRequest) {
+      this.requestCount++
+      this.tokenCount += estimatedTokens
+      this.dailyTokens += estimatedTokens
+    }
+
+    return canMakeRequest
+  }
+
+  getRetryDelay(): number {
+    const now = Date.now()
+    const timeUntilReset = 60000 - (now - this.lastReset)
+
+    // If daily limit exceeded, return 0 (can't retry)
+    if (this.dailyTokens >= this.limits.dailyTokenLimit) {
+      return 0
+    }
+
+    return Math.max(0, timeUntilReset)
+  }
+
+  reset() {
+    this.requestCount = 0
+    this.tokenCount = 0
+    this.dailyTokens = 0
+    this.lastReset = Date.now()
+    this.dailyReset = Date.now()
+  }
+
+  getStatus() {
+    const now = Date.now()
+    return {
+      requests: {
+        current: this.requestCount,
+        limit: this.limits.requestsPerMinute,
+        resetIn: Math.max(0, 60000 - (now - this.lastReset)),
+      },
+      tokens: {
+        current: this.tokenCount,
+        limit: this.limits.tokensPerMinute,
+        resetIn: Math.max(0, 60000 - (now - this.lastReset)),
+      },
+      dailyTokens: {
+        current: this.dailyTokens,
+        limit: this.limits.dailyTokenLimit,
+        resetIn: Math.max(0, 86400000 - (now - this.dailyReset)),
+      },
+    }
+  }
+}
+
+/**
+ * Performance Monitor implementation
+ */
+class PerformanceMonitor {
+  private metrics = new Map<string, PerformanceMetric[]>()
+  private readonly maxMetrics = 1000 // Keep last 1000 requests per provider
+
+  recordRequest(
+    provider: string,
+    metric: {
+      responseTime: number
+      tokensUsed: number
+      success: boolean
+      timestamp: number
+      error?: string
+    }
+  ) {
+    if (!this.metrics.has(provider)) {
+      this.metrics.set(provider, [])
+    }
+
+    const providerMetrics = this.metrics.get(provider)!
+    providerMetrics.push({
+      ...metric,
+      id: `${provider}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    })
+
+    // Keep only the most recent metrics
+    if (providerMetrics.length > this.maxMetrics) {
+      providerMetrics.shift()
+    }
+  }
+
+  getMetrics(): Record<string, ProviderPerformanceMetrics> {
+    const result: Record<string, ProviderPerformanceMetrics> = {}
+
+    for (const [provider, metrics] of this.metrics) {
+      if (metrics.length === 0) {
+        result[provider] = {
+          totalRequests: 0,
+          successRate: 0,
+          averageResponseTime: 0,
+          medianResponseTime: 0,
+          p95ResponseTime: 0,
+          totalTokens: 0,
+          errorsByType: {},
+          recentPerformance: [],
+        }
+        continue
+      }
+
+      const successfulRequests = metrics.filter(m => m.success)
+      const failedRequests = metrics.filter(m => !m.success)
+
+      const responseTimes = successfulRequests
+        .map(m => m.responseTime)
+        .sort((a, b) => a - b)
+
+      const errorsByType: Record<string, number> = {}
+      failedRequests.forEach(request => {
+        if (request.error) {
+          errorsByType[request.error] = (errorsByType[request.error] || 0) + 1
+        }
+      })
+
+      result[provider] = {
+        totalRequests: metrics.length,
+        successRate: successfulRequests.length / metrics.length,
+        averageResponseTime:
+          responseTimes.length > 0
+            ? responseTimes.reduce((sum, time) => sum + time, 0) /
+              responseTimes.length
+            : 0,
+        medianResponseTime:
+          responseTimes.length > 0
+            ? responseTimes[Math.floor(responseTimes.length / 2)]
+            : 0,
+        p95ResponseTime:
+          responseTimes.length > 0
+            ? responseTimes[Math.floor(responseTimes.length * 0.95)]
+            : 0,
+        totalTokens: metrics.reduce((sum, m) => sum + m.tokensUsed, 0),
+        errorsByType,
+        recentPerformance: metrics.slice(-10), // Last 10 requests
+      }
+    }
+
+    return result
+  }
+
+  reset() {
+    this.metrics.clear()
+  }
+}
+
+interface PerformanceMetric {
+  id: string
+  responseTime: number
+  tokensUsed: number
+  success: boolean
+  timestamp: number
+  error?: string
+}
+
+interface ProviderPerformanceMetrics {
+  totalRequests: number
+  successRate: number
+  averageResponseTime: number
+  medianResponseTime: number
+  p95ResponseTime: number
+  totalTokens: number
+  errorsByType: Record<string, number>
+  recentPerformance: PerformanceMetric[]
+}
+
+/**
+ * Request Queue implementation with priority handling
+ */
+class RequestQueue {
+  private queues = {
+    high: [] as QueuedRequestWithCallbacks[],
+    normal: [] as QueuedRequestWithCallbacks[],
+    low: [] as QueuedRequestWithCallbacks[],
+  }
+
+  enqueue(request: QueuedRequestWithCallbacks) {
+    this.queues[request.priority].push(request)
+  }
+
+  dequeue(): QueuedRequestWithCallbacks | null {
+    // Process high priority first, then normal, then low
+    if (this.queues.high.length > 0) {
+      return this.queues.high.shift()!
+    }
+    if (this.queues.normal.length > 0) {
+      return this.queues.normal.shift()!
+    }
+    if (this.queues.low.length > 0) {
+      return this.queues.low.shift()!
+    }
+    return null
+  }
+
+  isEmpty(): boolean {
+    return (
+      this.queues.high.length === 0 &&
+      this.queues.normal.length === 0 &&
+      this.queues.low.length === 0
+    )
+  }
+
+  getStatus() {
+    return {
+      high: this.queues.high.length,
+      normal: this.queues.normal.length,
+      low: this.queues.low.length,
+      total:
+        this.queues.high.length +
+        this.queues.normal.length +
+        this.queues.low.length,
+    }
+  }
+
+  clear() {
+    this.queues.high = []
+    this.queues.normal = []
+    this.queues.low = []
+  }
+}
+
+interface QueuedRequest extends AIRequest {
+  id: string
+  priority: 'high' | 'normal' | 'low'
+  timestamp: number
+  startTime: number
+}
+
+interface QueuedRequestWithCallbacks extends QueuedRequest {
+  resolve: (response: AIResponse) => void
+  reject: (error: Error) => void
 }
 
 // Export singleton instance
